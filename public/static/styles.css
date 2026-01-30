@@ -1,0 +1,265 @@
+/* 现代金融风格全局样式 */
+
+/* 隐藏滚动条但保持滚动功能 */
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { 
+  -ms-overflow-style: none; 
+  scrollbar-width: none; 
+}
+
+/* 页面切换动画 - 优化为渐显 + 缩放 */
+.page { 
+  display: none; 
+  animation: pageEnter 0.4s cubic-bezier(0.22, 1, 0.36, 1); 
+}
+.page.active { 
+  display: flex; 
+  flex-direction: column; 
+}
+@keyframes pageEnter { 
+  from { 
+    opacity: 0; 
+    transform: scale(0.95) translateY(10px); 
+  } 
+  to { 
+    opacity: 1; 
+    transform: scale(1) translateY(0); 
+  } 
+}
+
+/* 卡片滑动动画 - 添加弹性效果 */
+.card-slide { 
+  transition: transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1), 
+              opacity 0.3s ease-out; 
+}
+.card-slide.slide-out { 
+  transform: translateX(-120%) rotate(-5deg); 
+  opacity: 0; 
+}
+
+/* Toast 动画 - 从底部滑入 */
+.toast { 
+  animation: toastSlide 0.4s cubic-bezier(0.22, 1, 0.36, 1); 
+}
+@keyframes toastSlide { 
+  from { 
+    transform: translateY(100%) translateX(-50%); 
+    opacity: 0; 
+  } 
+  to { 
+    transform: translateY(0) translateX(-50%); 
+    opacity: 1; 
+  } 
+}
+
+/* 点击效果 - 添加涟漪效果 */
+.tap-effect { 
+  position: relative;
+  overflow: hidden;
+  transition: transform 0.1s, background-color 0.2s, box-shadow 0.3s; 
+}
+.tap-effect:active { 
+  transform: scale(0.96); 
+}
+.tap-effect::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 0;
+  height: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.4);
+  transform: translate(-50%, -50%);
+  transition: width 0.6s, height 0.6s;
+}
+.tap-effect:active::before {
+  width: 200px;
+  height: 200px;
+}
+
+/* 筛选标签样式 - 金融风格 */
+.filter-tag { 
+  color: #6b7280;
+  transition: all 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.filter-tag.active { 
+  border-color: #0F2557 !important; 
+  background: linear-gradient(135deg, rgba(15, 37, 87, 0.1) 0%, rgba(30, 64, 175, 0.1) 100%) !important; 
+  color: #0F2557 !important; 
+  box-shadow: 0 2px 8px rgba(15, 37, 87, 0.15);
+}
+.filter-tag:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(15, 37, 87, 0.1);
+}
+
+/* 滑块样式 - 金融风格渐变 */
+input[type="range"] {
+  -webkit-appearance: none;
+  background: linear-gradient(to right, 
+    #0F2557 0%, 
+    #1E40AF var(--value, 60%), 
+    #e5e7eb var(--value, 60%), 
+    #e5e7eb 100%
+  );
+  border-radius: 9999px;
+  height: 6px;
+}
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 24px;
+  height: 24px;
+  background: linear-gradient(135deg, #0F2557 0%, #1E40AF 100%);
+  border-radius: 50%;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(15, 37, 87, 0.4), 0 0 0 4px rgba(15, 37, 87, 0.1);
+  transition: all 0.3s;
+}
+input[type="range"]::-webkit-slider-thumb:hover {
+  box-shadow: 0 4px 12px rgba(15, 37, 87, 0.5), 0 0 0 6px rgba(15, 37, 87, 0.15);
+}
+input[type="range"]::-moz-range-thumb {
+  width: 24px;
+  height: 24px;
+  background: linear-gradient(135deg, #0F2557 0%, #1E40AF 100%);
+  border-radius: 50%;
+  cursor: pointer;
+  border: none;
+  box-shadow: 0 2px 8px rgba(15, 37, 87, 0.4), 0 0 0 4px rgba(15, 37, 87, 0.1);
+  transition: all 0.3s;
+}
+
+/* 玻璃态效果 */
+.glass-effect {
+  background: rgba(255, 255, 255, 0.75);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+/* 卡片悬浮效果 */
+.card-hover {
+  transition: transform 0.3s cubic-bezier(0.22, 1, 0.36, 1), 
+              box-shadow 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.card-hover:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 40px rgba(15, 37, 87, 0.15);
+}
+
+/* 渐变文字效果 */
+.gradient-text {
+  background: linear-gradient(135deg, #0F2557 0%, #D4AF37 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* 匹配度进度条动画 */
+.match-progress {
+  position: relative;
+  overflow: hidden;
+}
+.match-progress::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, 
+    transparent, 
+    rgba(255, 255, 255, 0.3), 
+    transparent
+  );
+  animation: shimmer 2s infinite;
+}
+@keyframes shimmer {
+  0% { left: -100%; }
+  100% { left: 100%; }
+}
+
+/* 底部导航栏阴影 */
+.nav-shadow {
+  box-shadow: 0 -2px 20px rgba(15, 37, 87, 0.08);
+}
+
+/* 面板滑入动画 */
+.panel-slide-up {
+  animation: panelSlideUp 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+}
+@keyframes panelSlideUp {
+  from {
+    transform: translateY(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+/* 徽章脉动效果 */
+.badge-pulse {
+  animation: badgePulse 2s ease-in-out infinite;
+}
+@keyframes badgePulse {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.1);
+    opacity: 0.8;
+  }
+}
+
+/* 金色高亮 */
+.gold-highlight {
+  background: linear-gradient(135deg, #D4AF37 0%, #F59E0B 100%);
+  box-shadow: 0 4px 15px rgba(212, 175, 55, 0.3);
+}
+
+/* 拟态效果 */
+.neumorphic {
+  background: #f0f4f8;
+  box-shadow: 
+    8px 8px 16px rgba(15, 37, 87, 0.15),
+    -8px -8px 16px rgba(255, 255, 255, 0.7);
+  border-radius: 16px;
+}
+.neumorphic-inset {
+  background: #f0f4f8;
+  box-shadow: 
+    inset 4px 4px 8px rgba(15, 37, 87, 0.1),
+    inset -4px -4px 8px rgba(255, 255, 255, 0.9);
+  border-radius: 12px;
+}
+
+/* 加载骨架屏效果 */
+@keyframes skeleton-loading {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    #f0f0f0 25%,
+    #e0e0e0 50%,
+    #f0f0f0 75%
+  );
+  background-size: 200% 100%;
+  animation: skeleton-loading 1.5s infinite;
+}
+
+/* 响应式字体 */
+@media (max-width: 428px) {
+  html {
+    font-size: 14px;
+  }
+}
