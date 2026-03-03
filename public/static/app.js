@@ -33,6 +33,8 @@ const projectsData = [
     team: '前腾讯医疗负责人领衔',
     highlight: '已获三甲医院合作',
     reason: '您关注医疗健康赛道 + A轮项目 + 深圳地区',
+    videoUrl: 'https://www.w3schools.com/html/mov_bbb.mp4',
+    videoPoster: 'https://placehold.co/400x220/0F2557/FFFFFF?text=🏥+智慧医疗AI+路演视频',
     details: [
       '已与 3 家三甲医院达成合作，累计服务 10 万+患者',
       'AI 诊断准确率达 95%，已获得医疗器械二类认证',
@@ -54,6 +56,8 @@ const projectsData = [
     team: '连续创业者，前网红品牌操盘手',
     highlight: '月销已突破500万',
     reason: '您近期浏览了新消费赛道项目',
+    videoUrl: 'https://www.w3schools.com/html/mov_bbb.mp4',
+    videoPoster: 'https://placehold.co/400x220/1E40AF/FFFFFF?text=🍕+潮流食品品牌+路演视频',
     details: [
       'Z世代消费者占比85%，复购率超60%',
       '线上线下全渠道布局，已入驻30+购物中心',
@@ -75,6 +79,8 @@ const projectsData = [
     team: '前字节跳动技术总监',
     highlight: '已签约50+企业客户',
     reason: '您偏好 SaaS 模式 + 技术驱动型项目',
+    videoUrl: 'https://www.w3schools.com/html/mov_bbb.mp4',
+    videoPoster: 'https://placehold.co/400x220/059669/FFFFFF?text=💬+智能客服SaaS+路演视频',
     details: [
       '服务Fortune 500企业，客户留存率95%',
       'AI智能对话系统，支持20+行业场景',
@@ -96,6 +102,8 @@ const projectsData = [
     team: '中科院材料所博士团队',
     highlight: '已获发明专利12项',
     reason: '您关注新能源赛道 + 硬科技项目',
+    videoUrl: 'https://www.w3schools.com/html/mov_bbb.mp4',
+    videoPoster: 'https://placehold.co/400x220/D97706/FFFFFF?text=🔋+固态电池+路演视频',
     details: [
       '固态电池能量密度提升40%，安全性提升80%',
       '已与宁德时代、比亚迪建立战略合作',
@@ -117,6 +125,8 @@ const projectsData = [
     team: '前猿辅导产品负责人',
     highlight: '付费用户3万+，月增长20%',
     reason: '您偏好早期项目 + 教育科技领域',
+    videoUrl: 'https://www.w3schools.com/html/mov_bbb.mp4',
+    videoPoster: 'https://placehold.co/400x220/7C3AED/FFFFFF?text=👨‍💻+AI编程教育+路演视频',
     details: [
       'AI个性化学习路径，用户学习效率提升3倍',
       '覆盖K12到职业教育全年龄段',
@@ -138,6 +148,8 @@ const projectsData = [
     team: '哈佛医学院归国团队',
     highlight: '年营收8000万，已盈利',
     reason: '您重点关注医疗健康 + 成熟期项目',
+    videoUrl: 'https://www.w3schools.com/html/mov_bbb.mp4',
+    videoPoster: 'https://placehold.co/400x220/DC2626/FFFFFF?text=🧬+基因检测+路演视频',
     details: [
       '基因检测技术达到国际领先水平',
       '合作医疗机构超过200家，覆盖全国30个省市',
@@ -159,6 +171,8 @@ const projectsData = [
     team: '清华自动化系教授创业',
     highlight: '已服务宁德时代、比亚迪',
     reason: '您关注智能制造 + 硬科技领域',
+    videoUrl: 'https://www.w3schools.com/html/mov_bbb.mp4',
+    videoPoster: 'https://placehold.co/400x220/0F2557/FFFFFF?text=🤖+工业视觉机器人+路演视频',
     details: [
       '视觉检测精度达到99.9%，远超人工检测',
       '已部署超过100条生产线，节省人工成本60%',
@@ -289,6 +303,37 @@ function renderProjectCards() {
             <div class="flex items-center gap-2">
               <i class="fas fa-star text-warning"></i>
               <span>亮点：${project.highlight}</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 视频介绍区域 -->
+        <div class="mx-4 mb-3" onclick="event.stopPropagation()">
+          <div class="flex items-center gap-2 mb-2">
+            <i class="fas fa-play-circle text-primary text-sm"></i>
+            <span class="text-xs font-semibold text-gray-600 uppercase tracking-wide">路演视频</span>
+            <span class="text-xs text-gray-400">· 创始人亲述</span>
+          </div>
+          <div class="relative rounded-xl overflow-hidden bg-gray-900 shadow-finance" style="aspect-ratio: 16/9;">
+            <video
+              id="video-${project.id}"
+              class="w-full h-full object-cover"
+              src="${project.videoUrl}"
+              poster="${project.videoPoster}"
+              preload="none"
+              playsinline
+              webkit-playsinline
+            ></video>
+            <!-- 播放遮罩层 -->
+            <div id="video-overlay-${project.id}" class="absolute inset-0 flex flex-col items-center justify-center cursor-pointer bg-black/20" onclick="toggleVideo(${project.id})">
+              <div id="play-btn-${project.id}" class="w-14 h-14 bg-white/90 rounded-full flex items-center justify-center shadow-lg transition-all duration-200 hover:scale-110 hover:bg-white">
+                <i class="fas fa-play text-primary text-xl pl-1"></i>
+              </div>
+              <span class="mt-2 text-white text-xs font-medium bg-black/40 px-3 py-1 rounded-full backdrop-blur-sm">点击播放路演视频</span>
+            </div>
+            <!-- 视频时长标签 -->
+            <div class="absolute top-2 right-2 bg-black/60 text-white text-xs px-2 py-0.5 rounded-md backdrop-blur-sm font-medium">
+              <i class="fas fa-clock mr-1 text-xs"></i>3:20
             </div>
           </div>
         </div>
@@ -893,6 +938,63 @@ function renderSortButton(value, label, active = false) {
 // ==================== 页面交互函数 ====================
 function initializeEventListeners() {
   // 这里可以添加额外的事件监听器
+}
+
+// ==================== 视频播放控制 ====================
+function toggleVideo(projectId) {
+  const video = document.getElementById('video-' + projectId);
+  const overlay = document.getElementById('video-overlay-' + projectId);
+  const playBtn = document.getElementById('play-btn-' + projectId);
+
+  if (!video) return;
+
+  if (video.paused) {
+    // 暂停所有其他视频
+    document.querySelectorAll('video').forEach(v => {
+      if (v !== video && !v.paused) {
+        v.pause();
+        const id = v.id.replace('video-', '');
+        const otherOverlay = document.getElementById('video-overlay-' + id);
+        const otherBtn = document.getElementById('play-btn-' + id);
+        if (otherOverlay) otherOverlay.style.background = 'rgba(0,0,0,0.2)';
+        if (otherBtn) otherBtn.innerHTML = '<i class="fas fa-play text-primary text-xl pl-1"></i>';
+      }
+    });
+
+    video.play();
+    // 隐藏遮罩，显示暂停按钮（半透明）
+    overlay.style.background = 'rgba(0,0,0,0)';
+    playBtn.innerHTML = '<i class="fas fa-pause text-primary text-xl"></i>';
+    playBtn.style.opacity = '0';
+
+    // 鼠标悬停时显示暂停按钮
+    overlay.addEventListener('mouseenter', showPauseHint);
+    overlay.addEventListener('mouseleave', hidePauseHint);
+
+    // 视频结束时恢复封面
+    video.onended = function() {
+      overlay.style.background = 'rgba(0,0,0,0.2)';
+      playBtn.innerHTML = '<i class="fas fa-play text-primary text-xl pl-1"></i>';
+      playBtn.style.opacity = '1';
+      overlay.removeEventListener('mouseenter', showPauseHint);
+      overlay.removeEventListener('mouseleave', hidePauseHint);
+    };
+  } else {
+    video.pause();
+    overlay.style.background = 'rgba(0,0,0,0.2)';
+    playBtn.innerHTML = '<i class="fas fa-play text-primary text-xl pl-1"></i>';
+    playBtn.style.opacity = '1';
+    overlay.removeEventListener('mouseenter', showPauseHint);
+    overlay.removeEventListener('mouseleave', hidePauseHint);
+  }
+
+  function showPauseHint() {
+    playBtn.style.opacity = '0.85';
+  }
+  function hidePauseHint() {
+    const v = document.getElementById('video-' + projectId);
+    if (v && !v.paused) playBtn.style.opacity = '0';
+  }
 }
 
 function showPage(pageId) {
