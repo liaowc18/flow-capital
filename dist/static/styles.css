@@ -402,3 +402,89 @@ input[type="range"]::-moz-range-thumb {
   pointer-events: none;
 }
 
+/* ===== 估值计算器专用样式 ===== */
+
+/* 暗色输入框 */
+.val-input {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1.5px solid rgba(255,255,255,0.1);
+  background: rgba(255,255,255,0.04);
+  color: #fff;
+  font-size: 13px;
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  -webkit-appearance: none;
+  appearance: none;
+}
+.val-input::placeholder {
+  color: rgba(255,255,255,0.25);
+}
+.val-input:focus {
+  border-color: #059669;
+  box-shadow: 0 0 0 3px rgba(5,150,105,0.15);
+}
+.val-input option {
+  background: #111816;
+  color: #fff;
+}
+
+/* 加载动画 spinner */
+.val-loading-spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid rgba(255,255,255,0.1);
+  border-top-color: #059669;
+  border-radius: 50%;
+  animation: valSpin 0.8s linear infinite;
+}
+@keyframes valSpin {
+  to { transform: rotate(360deg); }
+}
+
+/* 分数环动画 */
+.val-score-ring {
+  animation: valRingDraw 1.5s ease forwards;
+}
+@keyframes valRingDraw {
+  from { stroke-dasharray: 0 100; }
+}
+
+/* 进度条动画 */
+.val-bar-animate {
+  animation: valBarGrow 1s ease forwards;
+}
+@keyframes valBarGrow {
+  from { width: 0 !important; }
+}
+
+/* number input 隐藏上下箭头 */
+.val-input[type="number"]::-webkit-inner-spin-button,
+.val-input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.val-input[type="number"] {
+  -moz-appearance: textfield;
+}
+
+/* details summary 箭头处理 */
+#page-valuation details summary::-webkit-details-marker {
+  display: none;
+}
+#page-valuation details[open] summary span:first-child {
+  transform: rotate(90deg);
+  display: inline-block;
+  transition: transform 0.2s;
+}
+
+/* 估值页面滚动条 */
+#page-valuation .overflow-auto::-webkit-scrollbar {
+  display: none;
+}
+#page-valuation .overflow-auto {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+

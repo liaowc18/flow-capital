@@ -186,6 +186,7 @@ function renderApp() {
     ${renderProfilePage()}
     ${renderMyProjectsPage()}
     ${renderPublishPage()}
+    ${renderValuationPage()}
     ${renderToast()}
     ${renderFilterPanel()}
   `;
@@ -210,6 +211,9 @@ function renderHomePage() {
         
         <!-- 筛选和通知 -->
         <div class="flex items-center gap-2">
+          <button class="p-2 text-gray-500 hover:text-primary relative tap-effect" onclick="showPage('valuation')" title="项目估值计算器">
+            <i class="fas fa-calculator text-lg"></i>
+          </button>
           <button id="filter-btn" class="p-2 text-gray-500 hover:text-primary relative tap-effect" onclick="openFilter()">
             <i class="fas fa-filter text-lg"></i>
             <span id="filter-badge" class="absolute -top-0.5 -right-0.5 w-5 h-5 bg-primary text-white text-xs rounded-full items-center justify-center hidden badge-pulse">0</span>
@@ -1490,6 +1494,456 @@ function escapeHtml(s) {
   const div = document.createElement('div');
   div.textContent = s;
   return div.innerHTML;
+}
+
+// ==================== 估值计算器 ====================
+let valuationState = {
+  loading: false,
+  result: null,
+  formData: {}
+};
+
+function renderValuationPage() {
+  return `
+    <!-- 估值计算器页面 -->
+    <div id="page-valuation" class="page h-screen" style="background: #0a0f0e;">
+
+      <!-- 顶部栏 -->
+      <header class="px-4 py-3 flex items-center justify-between border-b border-white/10 sticky top-0 z-10" style="background: rgba(10,15,14,0.95); backdrop-filter: blur(10px);">
+        <button class="p-2 -ml-2 tap-effect" onclick="showPage('home')">
+          <i class="fas fa-arrow-left text-gray-400 text-lg"></i>
+        </button>
+        <div class="flex items-center gap-2">
+          <span class="px-2.5 py-1 rounded-md text-xs font-bold" style="background: #059669; color: white;">HSR 估值引擎</span>
+          <span class="font-semibold text-white text-sm">资产健康度评估</span>
+        </div>
+        <div class="w-8"></div>
+      </header>
+
+      <!-- 可滚动主体 -->
+      <div class="flex-1 overflow-auto no-scrollbar pb-6">
+
+        <!-- 标题描述 -->
+        <div class="px-4 pt-4 pb-3">
+          <p class="text-xs text-gray-500 leading-relaxed">基于 HSR 多维物理对撞的小微企业/门店估值 · P＝M×V 基态分类 · 定价参数建议</p>
+        </div>
+
+        <!-- 表单区域 -->
+        <div id="val-form-section">
+          <div class="mx-4 rounded-2xl p-4" style="background: #111816; border: 1px solid rgba(255,255,255,0.08);">
+
+            <h2 class="text-white font-bold text-base mb-1">企业数据输入</h2>
+            <p class="text-xs text-emerald-400/80 mb-4">至少填写收入+成本（或日流水+日成本），更多字段 = 更准确的评估</p>
+
+            <!-- 基础信息 -->
+            <div class="grid grid-cols-2 gap-3 mb-4">
+              <div>
+                <label class="block text-xs text-gray-500 mb-1.5">企业名称</label>
+                <input type="text" id="val-name" placeholder="如：张三麻辣烫" class="val-input">
+              </div>
+              <div>
+                <label class="block text-xs text-gray-500 mb-1.5">行业</label>
+                <select id="val-industry" class="val-input">
+                  <option value="">选择行业</option>
+                  <option value="餐饮">餐饮</option>
+                  <option value="零售">零售</option>
+                  <option value="教育">教育</option>
+                  <option value="医疗健康">医疗健康</option>
+                  <option value="美容美发">美容美发</option>
+                  <option value="物流">物流</option>
+                  <option value="制造业">制造业</option>
+                  <option value="科技/SaaS">科技/SaaS</option>
+                  <option value="新消费">新消费</option>
+                  <option value="新能源">新能源</option>
+                  <option value="服务业">服务业</option>
+                  <option value="其他">其他</option>
+                </select>
+              </div>
+            </div>
+
+            <!-- 核心数据 -->
+            <div class="flex items-center gap-2 mb-3">
+              <span class="text-sm">📋</span>
+              <span class="text-xs font-semibold text-white">核心数据（必填其一组）</span>
+            </div>
+            <div class="grid grid-cols-2 gap-3 mb-4">
+              <div>
+                <label class="block text-xs text-gray-500 mb-1.5">年收入（元）</label>
+                <input type="number" id="val-revenue" placeholder="如 1200000" class="val-input">
+              </div>
+              <div>
+                <label class="block text-xs text-gray-500 mb-1.5">年成本（元）</label>
+                <input type="number" id="val-cost" placeholder="如 800000" class="val-input">
+              </div>
+              <div>
+                <label class="block text-xs text-gray-500 mb-1.5">日流水（元）</label>
+                <input type="number" id="val-daily-flow" placeholder="如 8500" class="val-input">
+              </div>
+              <div>
+                <label class="block text-xs text-gray-500 mb-1.5">日成本（元）</label>
+                <input type="number" id="val-daily-cost" placeholder="如 5000" class="val-input">
+              </div>
+            </div>
+
+            <!-- 推荐补充 -->
+            <div class="flex items-center gap-2 mb-3">
+              <span class="text-sm">💡</span>
+              <span class="text-xs font-semibold text-white">推荐补充</span>
+            </div>
+            <div class="grid grid-cols-2 gap-3 mb-4">
+              <div>
+                <label class="block text-xs text-gray-500 mb-1.5">净利润（元/年）</label>
+                <input type="number" id="val-net-profit" placeholder="可选" class="val-input">
+              </div>
+              <div>
+                <label class="block text-xs text-gray-500 mb-1.5">退款率</label>
+                <input type="number" id="val-refund-rate" step="0.01" placeholder="如 0.01" class="val-input">
+              </div>
+              <div>
+                <label class="block text-xs text-gray-500 mb-1.5">增长率</label>
+                <input type="number" id="val-growth-rate" step="0.01" placeholder="如 0.1" class="val-input">
+              </div>
+              <div>
+                <label class="block text-xs text-gray-500 mb-1.5">周转天数</label>
+                <input type="number" id="val-turnover-days" placeholder="如 7" class="val-input">
+              </div>
+            </div>
+
+            <!-- 更多字段（可展开） -->
+            <details class="mb-4">
+              <summary class="text-xs text-gray-500 cursor-pointer hover:text-emerald-400 transition-colors flex items-center gap-1.5 py-2">
+                <span>▶</span> <span>🔧</span> 更多字段（可选）
+              </summary>
+              <div class="grid grid-cols-2 gap-3 mt-3">
+                <div>
+                  <label class="block text-xs text-gray-500 mb-1.5">负债率</label>
+                  <input type="number" id="val-debt-ratio" step="0.01" placeholder="如 0.3" class="val-input">
+                </div>
+                <div>
+                  <label class="block text-xs text-gray-500 mb-1.5">员工人数</label>
+                  <input type="number" id="val-employee-count" placeholder="如 8" class="val-input">
+                </div>
+                <div>
+                  <label class="block text-xs text-gray-500 mb-1.5">经营年限</label>
+                  <input type="number" id="val-operating-years" step="0.5" placeholder="如 3" class="val-input">
+                </div>
+              </div>
+            </details>
+
+            <!-- 提交按钮 -->
+            <button id="val-submit-btn" class="w-full py-3.5 rounded-xl font-bold text-white text-sm tap-effect transition-all flex items-center justify-center gap-2" style="background: linear-gradient(135deg, #059669 0%, #10B981 100%); box-shadow: 0 4px 15px rgba(5,150,105,0.3);" onclick="submitValuation()">
+              <i class="fas fa-calculator"></i>
+              <span>开始估值分析</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- 加载态 -->
+        <div id="val-loading" class="mx-4 mt-4 hidden">
+          <div class="rounded-2xl p-8 text-center" style="background: #111816; border: 1px solid rgba(255,255,255,0.08);">
+            <div class="val-loading-spinner mx-auto mb-4"></div>
+            <p class="text-white font-semibold text-sm mb-1">AI 数学分析师正在诊断...</p>
+            <p class="text-gray-500 text-xs" id="val-loading-text">正在计算盈利能力指标</p>
+          </div>
+        </div>
+
+        <!-- 结果区域 -->
+        <div id="val-result" class="hidden"></div>
+
+      </div>
+    </div>
+  `;
+}
+
+// ==================== 估值提交 ====================
+function submitValuation() {
+  const name = (document.getElementById('val-name') || {}).value || '';
+  const industry = (document.getElementById('val-industry') || {}).value || '';
+  const revenue = parseFloat((document.getElementById('val-revenue') || {}).value) || 0;
+  const cost = parseFloat((document.getElementById('val-cost') || {}).value) || 0;
+  const dailyFlow = parseFloat((document.getElementById('val-daily-flow') || {}).value) || 0;
+  const dailyCost = parseFloat((document.getElementById('val-daily-cost') || {}).value) || 0;
+  const netProfit = parseFloat((document.getElementById('val-net-profit') || {}).value) || 0;
+  const refundRate = parseFloat((document.getElementById('val-refund-rate') || {}).value) || 0;
+  const growthRate = parseFloat((document.getElementById('val-growth-rate') || {}).value) || 0;
+  const turnoverDays = parseFloat((document.getElementById('val-turnover-days') || {}).value) || 0;
+  const debtRatio = parseFloat((document.getElementById('val-debt-ratio') || {}).value) || 0;
+  const employeeCount = parseInt((document.getElementById('val-employee-count') || {}).value) || 0;
+  const operatingYears = parseFloat((document.getElementById('val-operating-years') || {}).value) || 0;
+
+  // 校验
+  if (!revenue && !dailyFlow) {
+    showToast('请至少填写年收入或日流水');
+    return;
+  }
+  if (!cost && !dailyCost) {
+    showToast('请至少填写年成本或日成本');
+    return;
+  }
+
+  const formData = { name: name.trim(), industry, revenue, cost, dailyFlow, dailyCost, netProfit, refundRate, growthRate, turnoverDays, debtRatio, employeeCount, operatingYears };
+  valuationState.formData = formData;
+
+  // 显示加载态
+  document.getElementById('val-loading').classList.remove('hidden');
+  document.getElementById('val-result').classList.add('hidden');
+  document.getElementById('val-result').innerHTML = '';
+  const btn = document.getElementById('val-submit-btn');
+  if (btn) { btn.disabled = true; btn.style.opacity = '0.5'; }
+
+  // 加载文案轮播
+  const loadingTexts = [
+    '正在计算盈利能力指标...',
+    '正在分析现金流质量...',
+    '正在评估增长趋势...',
+    '正在对标行业数据...',
+    '正在生成估值区间...',
+    '正在撰写分析报告...',
+    'AI 分析师正在翻译行业术语...'
+  ];
+  let textIdx = 0;
+  const loadingTimer = setInterval(function() {
+    textIdx = (textIdx + 1) % loadingTexts.length;
+    var el = document.getElementById('val-loading-text');
+    if (el) el.textContent = loadingTexts[textIdx];
+  }, 2000);
+
+  // 调用 API
+  axios.post('/api/valuation', formData)
+    .then(function(res) {
+      clearInterval(loadingTimer);
+      if (res.data.success) {
+        valuationState.result = res.data.result;
+        renderValuationResult(res.data.result);
+      } else {
+        showToast(res.data.error || '分析失败');
+        document.getElementById('val-loading').classList.add('hidden');
+      }
+      var b = document.getElementById('val-submit-btn');
+      if (b) { b.disabled = false; b.style.opacity = '1'; }
+    })
+    .catch(function(err) {
+      clearInterval(loadingTimer);
+      console.error('Valuation error:', err);
+      showToast('网络错误，请重试');
+      document.getElementById('val-loading').classList.add('hidden');
+      var b = document.getElementById('val-submit-btn');
+      if (b) { b.disabled = false; b.style.opacity = '1'; }
+    });
+}
+
+// ==================== 渲染估值结果 ====================
+function renderValuationResult(r) {
+  document.getElementById('val-loading').classList.add('hidden');
+  var resultEl = document.getElementById('val-result');
+  resultEl.classList.remove('hidden');
+
+  // 根据 grade 选色
+  var gradeColors = { S: '#D4AF37', A: '#059669', B: '#1E40AF', C: '#F59E0B', D: '#DC2626' };
+  var gradeColor = gradeColors[r.grade] || '#059669';
+  var scorePct = r.score || 0;
+
+  // 维度数据
+  var dims = r.dimensions || {};
+  var dimList = [
+    { key: 'profitability', label: '盈利能力', icon: '💰' },
+    { key: 'cashQuality', label: '现金质量', icon: '💵' },
+    { key: 'growthTrend', label: '增长趋势', icon: '📈' },
+    { key: 'scaleVolume', label: '规模体量', icon: '🏢' },
+    { key: 'operationEfficiency', label: '运营效率', icon: '⚙️' },
+    { key: 'debtRisk', label: '借债风险', icon: '🔒' }
+  ];
+
+  // 构建维度条 HTML
+  var dimBarsHtml = dimList.map(function(d) {
+    var dimData = dims[d.key] || { score: 50, verdict: '' };
+    var barColor = dimData.score >= 80 ? '#059669' : dimData.score >= 60 ? '#10B981' : dimData.score >= 40 ? '#F59E0B' : '#DC2626';
+    return '<div>' +
+      '<div class="flex items-center justify-between mb-1">' +
+        '<span class="text-xs text-gray-400">' + d.icon + ' ' + d.label + '</span>' +
+        '<span class="text-xs font-bold" style="color:' + barColor + ';">' + dimData.score + '</span>' +
+      '</div>' +
+      '<div class="w-full h-2 rounded-full" style="background:rgba(255,255,255,0.06);">' +
+        '<div class="h-full rounded-full val-bar-animate" style="width:' + dimData.score + '%;background:' + barColor + ';transition:width 1s ease;"></div>' +
+      '</div>' +
+      '<p class="text-xs text-gray-600 mt-1 italic">' + (dimData.verdict || '') + '</p>' +
+    '</div>';
+  }).join('');
+
+  // 维度标签
+  var dimTagsHtml = dimList.map(function(d) {
+    var s = (dims[d.key] || {}).score || 0;
+    var isGood = s >= 60;
+    return '<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium" style="background:' + (isGood ? 'rgba(5,150,105,0.15)' : 'rgba(220,38,38,0.15)') + ';color:' + (isGood ? '#10B981' : '#F87171') + ';">' +
+      (isGood ? '✅' : '⚠️') + ' ' + d.label + '</span>';
+  }).join('');
+
+  // 优势列表
+  var strengthsHtml = (r.report && r.report.strengths ? r.report.strengths : []).map(function(s) {
+    return '<div class="flex items-start gap-2"><span class="text-emerald-400 text-xs mt-0.5 flex-shrink-0">✓</span><p class="text-gray-300 text-xs leading-relaxed">' + escapeHtml(s) + '</p></div>';
+  }).join('');
+
+  // 风险列表
+  var risksHtml = (r.report && r.report.risks ? r.report.risks : []).map(function(s) {
+    return '<div class="flex items-start gap-2"><span class="text-red-400 text-xs mt-0.5 flex-shrink-0">!</span><p class="text-gray-300 text-xs leading-relaxed">' + escapeHtml(s) + '</p></div>';
+  }).join('');
+
+  resultEl.innerHTML =
+    // 综合评分
+    '<div class="mx-4 mt-4 rounded-2xl p-5" style="background:#111816;border:1px solid rgba(255,255,255,0.08);">' +
+      '<div class="flex items-start justify-between mb-4">' +
+        '<div>' +
+          '<div class="flex items-baseline gap-3">' +
+            '<span class="text-5xl font-black text-white">' + r.score + '</span>' +
+            '<span class="px-3 py-1 rounded-lg text-xs font-bold text-white" style="background:' + gradeColor + ';">' + escapeHtml(r.archetype || '分析中') + '</span>' +
+          '</div>' +
+          '<p class="text-gray-400 text-xs mt-1">' + escapeHtml(r.archetypeDesc || '') + '</p>' +
+          '<p class="text-gray-600 text-xs mt-0.5">' + escapeHtml(r.grade || '') + ' 级</p>' +
+        '</div>' +
+        '<div class="relative w-16 h-16 flex-shrink-0">' +
+          '<svg class="w-16 h-16" style="transform:rotate(-90deg)" viewBox="0 0 36 36">' +
+            '<circle cx="18" cy="18" r="15" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="3"/>' +
+            '<circle cx="18" cy="18" r="15" fill="none" stroke="' + gradeColor + '" stroke-width="3" stroke-dasharray="' + (scorePct * 0.942) + ' 100" stroke-linecap="round" class="val-score-ring"/>' +
+          '</svg>' +
+          '<span class="absolute inset-0 flex items-center justify-center text-white font-bold text-sm">' + escapeHtml(r.grade || '') + '</span>' +
+        '</div>' +
+      '</div>' +
+    '</div>' +
+
+    // 估值参考区间
+    '<div class="mx-4 mt-3 rounded-2xl p-5" style="background:#111816;border:1px solid rgba(255,255,255,0.08);">' +
+      '<div class="flex items-center gap-2 mb-3"><span class="text-sm">💰</span><span class="text-white font-bold text-sm">估值参考区间</span></div>' +
+      '<div class="grid grid-cols-3 gap-2 mb-3">' +
+        '<div class="rounded-xl p-3 text-center" style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);"><p class="text-gray-500 text-xs mb-1">保守</p><p class="text-white font-bold text-lg">' + formatWan(r.valuation && r.valuation.conservative) + '</p></div>' +
+        '<div class="rounded-xl p-3 text-center" style="background:rgba(5,150,105,0.1);border:1px solid rgba(5,150,105,0.3);"><p class="text-emerald-400 text-xs mb-1">中性</p><p class="text-white font-bold text-lg">' + formatWan(r.valuation && r.valuation.neutral) + '</p></div>' +
+        '<div class="rounded-xl p-3 text-center" style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);"><p class="text-gray-500 text-xs mb-1">乐观</p><p class="text-white font-bold text-lg">' + formatWan(r.valuation && r.valuation.optimistic) + '</p></div>' +
+      '</div>' +
+      '<p class="text-gray-600 text-xs">' + escapeHtml((r.valuation && r.valuation.method) || '') + ' · 置信度 ' + ((r.valuation && r.valuation.confidence) || 0) + '%</p>' +
+    '</div>' +
+
+    // 多维透视
+    '<div class="mx-4 mt-3 rounded-2xl p-5" style="background:#111816;border:1px solid rgba(255,255,255,0.08);">' +
+      '<div class="flex items-center gap-2 mb-4"><span class="text-sm">📊</span><span class="text-white font-bold text-sm">多维透视</span></div>' +
+      '<div class="space-y-3 mb-4">' + dimBarsHtml + '</div>' +
+      '<div class="flex flex-wrap gap-2">' + dimTagsHtml + '</div>' +
+    '</div>' +
+
+    // 造局参数
+    '<div class="mx-4 mt-3 rounded-2xl p-5" style="background:#111816;border:1px solid rgba(255,255,255,0.08);">' +
+      '<div class="flex items-center gap-2 mb-3"><span class="text-sm">🎯</span><span class="text-white font-bold text-sm">造局参数建议</span></div>' +
+      '<div class="space-y-3">' +
+        renderDealParam('PE 倍数', r.dealParams && r.dealParams.suggestedPE) +
+        renderDealParam('出让比例', r.dealParams && r.dealParams.suggestedStake) +
+        renderDealParam('交易结构', r.dealParams && r.dealParams.dealStructure) +
+        renderDealParam('关键条件', r.dealParams && r.dealParams.keyCondition) +
+      '</div>' +
+    '</div>' +
+
+    // 评估报告
+    '<div class="mx-4 mt-3 rounded-2xl p-5" style="background:#111816;border:1px solid rgba(255,255,255,0.08);">' +
+      '<div class="flex items-center gap-2 mb-3"><span class="text-sm">📝</span><span class="text-white font-bold text-sm">评估报告</span></div>' +
+      // 一句话总结
+      '<div class="p-3 rounded-xl mb-4" style="background:rgba(5,150,105,0.08);border:1px solid rgba(5,150,105,0.2);"><p class="text-emerald-400 text-sm font-medium leading-relaxed">"' + escapeHtml((r.report && r.report.oneLiner) || '') + '"</p></div>' +
+      // 优势
+      '<div class="mb-4"><p class="text-xs text-gray-500 font-semibold mb-2 flex items-center gap-1.5"><span class="text-emerald-400">●</span> 核心优势</p><div class="space-y-2">' + strengthsHtml + '</div></div>' +
+      // 风险
+      '<div class="mb-4"><p class="text-xs text-gray-500 font-semibold mb-2 flex items-center gap-1.5"><span class="text-red-400">●</span> 主要风险</p><div class="space-y-2">' + risksHtml + '</div></div>' +
+      // 造局建议
+      '<div class="mb-4"><p class="text-xs text-gray-500 font-semibold mb-2 flex items-center gap-1.5"><span class="text-amber-400">●</span> 造局建议</p><p class="text-gray-300 text-xs leading-relaxed">' + escapeHtml((r.report && r.report.actionPlan) || '') + '</p></div>' +
+      // 投资人话术
+      '<div class="p-3 rounded-xl" style="background:rgba(212,175,55,0.06);border:1px solid rgba(212,175,55,0.2);">' +
+        '<p class="text-xs text-gray-500 font-semibold mb-2 flex items-center gap-1.5"><i class="fas fa-comment-dollar text-amber-400"></i> 见投资人这么说</p>' +
+        '<p class="text-gray-300 text-xs leading-relaxed italic">"' + escapeHtml((r.report && r.report.investorPitch) || '') + '"</p>' +
+      '</div>' +
+    '</div>' +
+
+    // 操作栏
+    '<div class="mx-4 mt-3 mb-6 flex gap-3">' +
+      '<button class="flex-1 py-3 rounded-xl font-semibold text-sm tap-effect flex items-center justify-center gap-2" style="background:rgba(255,255,255,0.08);color:white;border:1px solid rgba(255,255,255,0.15);" onclick="resetValuation()"><i class="fas fa-redo text-xs"></i> 重新评估</button>' +
+      '<button class="flex-1 py-3 rounded-xl font-semibold text-sm tap-effect flex items-center justify-center gap-2" style="background:linear-gradient(135deg,#059669 0%,#10B981 100%);color:white;box-shadow:0 4px 15px rgba(5,150,105,0.3);" onclick="exportValuationReport()"><i class="fas fa-file-export text-xs"></i> 导出报告</button>' +
+    '</div>';
+
+  // 滚动到结果区域
+  setTimeout(function() {
+    var container = document.getElementById('page-valuation').querySelector('.overflow-auto');
+    if (container) container.scrollTo({ top: container.scrollHeight * 0.25, behavior: 'smooth' });
+  }, 200);
+}
+
+// ==================== 估值辅助函数 ====================
+function formatWan(val) {
+  if (!val && val !== 0) return '-';
+  if (val >= 10000) return (val / 10000).toFixed(1) + ' 亿';
+  return val.toFixed(1) + ' 万';
+}
+
+function renderDealParam(label, value) {
+  if (!value) return '';
+  return '<div class="flex items-start gap-3 p-3 rounded-xl" style="background:rgba(255,255,255,0.03);">' +
+    '<span class="text-xs text-gray-500 flex-shrink-0 w-16 pt-0.5">' + escapeHtml(label) + '</span>' +
+    '<p class="text-gray-300 text-xs leading-relaxed flex-1">' + escapeHtml(value) + '</p>' +
+  '</div>';
+}
+
+function resetValuation() {
+  valuationState.result = null;
+  var resultEl = document.getElementById('val-result');
+  if (resultEl) { resultEl.classList.add('hidden'); resultEl.innerHTML = ''; }
+  var container = document.getElementById('page-valuation').querySelector('.overflow-auto');
+  if (container) container.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function exportValuationReport() {
+  if (!valuationState.result) {
+    showToast('请先完成估值分析');
+    return;
+  }
+  var r = valuationState.result;
+  var fd = valuationState.formData;
+
+  var text = '═══════════════════════════════════\n';
+  text += '  HSR 资产健康度评估报告\n';
+  text += '═══════════════════════════════════\n\n';
+  text += '📋 项目：' + (fd.name || '未命名') + ' | 行业：' + (fd.industry || '未指定') + '\n';
+  text += '📅 评估时间：' + new Date().toLocaleDateString('zh-CN') + '\n\n';
+  text += '─── 综合评分 ───\n';
+  text += '评分：' + r.score + '/100 (' + r.grade + '级)\n';
+  text += '基因型：' + r.archetype + ' — ' + r.archetypeDesc + '\n\n';
+  text += '─── 估值区间 ───\n';
+  text += '保守：' + formatWan(r.valuation && r.valuation.conservative) + ' | 中性：' + formatWan(r.valuation && r.valuation.neutral) + ' | 乐观：' + formatWan(r.valuation && r.valuation.optimistic) + '\n';
+  text += '方法：' + ((r.valuation && r.valuation.method) || '') + ' | 置信度：' + ((r.valuation && r.valuation.confidence) || 0) + '%\n\n';
+  text += '─── 多维透视 ───\n';
+  var dims = r.dimensions || {};
+  var dimLabels = { profitability: '盈利能力', cashQuality: '现金质量', growthTrend: '增长趋势', scaleVolume: '规模体量', operationEfficiency: '运营效率', debtRisk: '借债风险' };
+  Object.keys(dimLabels).forEach(function(k) {
+    var d = dims[k] || {};
+    text += '  ' + dimLabels[k] + ': ' + (d.score || '-') + '/100 — ' + (d.verdict || '') + '\n';
+  });
+  text += '\n─── 造局参数 ───\n';
+  if (r.dealParams && r.dealParams.suggestedPE) text += '  PE倍数：' + r.dealParams.suggestedPE + '\n';
+  if (r.dealParams && r.dealParams.suggestedStake) text += '  出让比例：' + r.dealParams.suggestedStake + '\n';
+  if (r.dealParams && r.dealParams.dealStructure) text += '  交易结构：' + r.dealParams.dealStructure + '\n';
+  if (r.dealParams && r.dealParams.keyCondition) text += '  关键条件：' + r.dealParams.keyCondition + '\n';
+  text += '\n─── 评估报告 ───\n';
+  text += '总结：' + ((r.report && r.report.oneLiner) || '') + '\n\n';
+  text += '优势：\n';
+  (r.report && r.report.strengths ? r.report.strengths : []).forEach(function(s) { text += '  ✓ ' + s + '\n'; });
+  text += '\n风险：\n';
+  (r.report && r.report.risks ? r.report.risks : []).forEach(function(s) { text += '  ! ' + s + '\n'; });
+  text += '\n造局建议：\n  ' + ((r.report && r.report.actionPlan) || '') + '\n';
+  text += '\n投资人话术：\n  "' + ((r.report && r.report.investorPitch) || '') + '"\n';
+  text += '\n═══════════════════════════════════\n';
+  text += '  由 Flow Capital HSR 估值引擎生成\n';
+  text += '═══════════════════════════════════\n';
+
+  var blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a');
+  a.href = url;
+  a.download = 'HSR估值报告_' + (fd.name || '项目') + '_' + new Date().toISOString().slice(0,10) + '.txt';
+  a.click();
+  URL.revokeObjectURL(url);
+  showToast('✅ 报告已导出');
 }
 
 console.log('Flow Capital 应用已加载');
