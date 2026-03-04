@@ -1898,6 +1898,10 @@ function renderValuationResult(r) {
     }
   }
 
+  // 来源标识
+  var sourceLabel = r._source === 'llm' ? '<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-gradient-finance text-white shadow-sm"><i class="fas fa-brain"></i> AI 分析师</span>' :
+    '<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-gray-600 text-white"><i class="fas fa-microchip"></i> 本地引擎</span>';
+
   resultEl.innerHTML =
     // 综合评分卡片 — 白色卡片 + 渐变背景
     '<div class="mx-4 mt-4 bg-white rounded-2xl shadow-finance border border-gray-100 overflow-hidden">' +
@@ -1909,7 +1913,7 @@ function renderValuationResult(r) {
               '<span class="px-3 py-1 rounded-lg text-xs font-bold text-white shadow-sm" style="background:' + gradeColor + ';">' + escapeHtml(r.archetype || '分析中') + '</span>' +
             '</div>' +
             '<p class="text-gray-600 text-xs mt-2">' + escapeHtml(r.archetypeDesc || '') + '</p>' +
-            '<p class="text-gray-400 text-xs mt-0.5">' + escapeHtml(r.grade || '') + ' 级评定</p>' +
+            '<p class="text-gray-400 text-xs mt-0.5">' + escapeHtml(r.grade || '') + ' 级评定 ' + sourceLabel + '</p>' +
           '</div>' +
           '<div class="relative w-16 h-16 flex-shrink-0">' +
             '<svg class="w-16 h-16" style="transform:rotate(-90deg)" viewBox="0 0 36 36">' +

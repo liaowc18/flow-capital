@@ -37,6 +37,7 @@ app.post('/api/valuation', async (c) => {
     if (apiKey) {
       try {
         result = await callLLM(apiKey, baseUrl, { name, industry, annualRevenue, annualCost, calcNetProfit, profitMargin, dailyCashFlow, dailyCost, refundRate, growthRate, turnoverDays, debtRatio, employeeCount, operatingYears })
+        if (result) result._source = 'llm'
       } catch (e: any) {
         console.error('LLM fallback to local:', e.message)
       }
@@ -45,6 +46,7 @@ app.post('/api/valuation', async (c) => {
     // 如果 LLM 失败，使用本地智能引擎
     if (!result) {
       result = localValuationEngine({ name, industry, annualRevenue, annualCost, calcNetProfit, profitMargin, dailyCashFlow, dailyCost: dailyCost || (annualCost / 365), refundRate, growthRate, turnoverDays, debtRatio, employeeCount, operatingYears })
+      result._source = 'local'
     }
 
     return c.json({ success: true, result })
@@ -308,9 +310,12 @@ function localValuationEngine(d: any) {
   if (revWan > 500) scaleScore = Math.min(100, scaleScore + 15)
   if (employeeCount > 20) scaleScore = Math.min(100, scaleScore + 10)
 
-  // 运营效率
+  // 运营效率 — 亏损项目运营分要下调
   let opScore = 60
-  if (pm > 0.2) opScore += 15
+  if (pm < -100) opScore = Math.max(10, opScore - 30)       // 极端亏损大幅扣
+  else if (pm < -30) opScore = Math.max(15, opScore - 20)   // 严重亏损扣
+  else if (pm < 0) opScore = Math.max(25, opScore - 10)     // 轻度亏损略扣
+  if (pm > 20) opScore += 15  // pm是百分比值如25表示25%
   if (turnoverDays > 0 && turnoverDays <= 14) opScore += 10
   if (employeeCount > 0 && annualRevenue > 0) {
     const perCapita = annualRevenue / employeeCount / 10000
@@ -343,14 +348,20 @@ function localValuationEngine(d: any) {
   type ArchetypeInfo = { name: string; desc: string }
   let archetype: ArchetypeInfo
 
+  // 成本倍数计算（用于话术中精确描述）
+  const costMultiple = annualRevenue > 0 ? Math.round(annualCost / annualRevenue * 10) / 10 : 0
+
   // 极端负面分型优先 —— 先排除"已经死了"的情况
-  if (pm < -100) {
-    archetype = { name: '失血型', desc: `成本是收入的${Math.abs(Math.round(pm / 100 + 1)) + 1}倍多——项目不是在赔钱，是在自杀式烧钱。要么立刻做截肢手术砍掉亏损源，要么准备写讣告` }
+  if (annualRevenue <= 0 && annualCost > 0) {
+    archetype = { name: '种子型', desc: '还没有营收，处于纯投入期——现在谈估值太早了，核心是验证PMF、跑出第一批付费用户' }
+  } else if (pm < -100) {
+    archetype = { name: '失血型', desc: `成本是收入的${costMultiple}倍——项目不是在赔钱，是在自杀式烧钱。要么立刻做截肢手术砍掉亏损源，要么准备写讣告` }
   } else if (pm < -30) {
     archetype = { name: '溺水型', desc: '营收远远覆盖不了成本——项目在水面下挣扎，再不注入资金或大幅砍成本，撑不了几个月' }
   } else if (pm < 0) {
     archetype = { name: '输血型', desc: '还在亏损期，靠外部资金维持——关键看亏损趋势：在收窄就有救，在扩大就得紧急止损' }
-  } else if (pm < 0.03 && annualRevenue > 500000) {
+  } else if (pm >= 0 && pm < 3 && annualRevenue > 1000000) {
+    // 泡沫型门槛：利润率<3% 且年营收>100万，盘子不大的小店不算泡沫
     archetype = { name: '泡沫型', desc: '营收数字不低但利润率低得离谱——虚胖，一戳就瘪，增长越快可能亏越多' }
   } else if (debtScore < 20) {
     archetype = { name: '高杠杆型', desc: '资不抵债了——不是负债偏高的问题，是整个财务结构已经塌了，表面再光鲜底下全是窟窿' }
@@ -365,7 +376,7 @@ function localValuationEngine(d: any) {
     archetype = { name: '稳盘型', desc: '盘子大利润稳就是增长到顶了，守江山型选手——稳但没惊喜' }
   } else if (growthScore > 70 && pm > 15) {
     archetype = { name: '潜力型', desc: '利润和增速都不差，六边形战士——有上牌桌跟大佬掰手腕的硬实力' }
-  } else if (pm < 5) {
+  } else if (pm < 5 && annualRevenue > 1000000) {
     archetype = { name: '泡沫型', desc: '营收数字不低但利润率低得离谱——虚胖，一戳就瘪' }
   } else if (debtScore < 40) {
     archetype = { name: '高杠杆型', desc: '表面光鲜底下全是借来的——杠杆拉太满，一个黑天鹅就翻车' }
@@ -396,6 +407,8 @@ function localValuationEngine(d: any) {
     profitVerdict = `利润率${pm.toFixed(0)}%，能赚但利润偏薄——得看流水够不够大来撑估值`
   } else if (pm > 0) {
     profitVerdict = `利润率才${pm.toFixed(1)}%，勉强保本——风一吹就亏，赚的钱全被成本吃了`
+  } else if (annualRevenue <= 0) {
+    profitVerdict = '没有营收，纯投入期——先跑出付费用户再说'
   } else if (pm > -10) {
     profitVerdict = `利润率${pm.toFixed(1)}%，已经在亏钱了——每做一单都在往里倒贴，得赶紧止血`
   } else if (pm > -50) {
@@ -403,7 +416,9 @@ function localValuationEngine(d: any) {
   } else if (pm > -100) {
     profitVerdict = `利润率${pm.toFixed(0)}%，重度失血——成本是收入的两倍以上，账上的钱在加速蒸发`
   } else {
-    profitVerdict = `利润率${pm.toFixed(0)}%，彻底倒挂——成本是收入的${Math.abs(Math.round(pm / 100 + 1)) + 1}倍多，不是在生死线上，是已经在ICU了。再不动手术直接宣告死亡`
+    profitVerdict = annualRevenue > 0
+      ? `利润率${pm.toFixed(0)}%，彻底倒挂——成本是收入的${costMultiple}倍，不是在生死线上，是已经在ICU了。再不动手术直接宣告死亡`
+      : '没有营收，纯烧钱阶段——现在谈利润率没意义，核心是尽快跑出收入模型'
   }
 
   let cashVerdict: string
@@ -448,16 +463,22 @@ function localValuationEngine(d: any) {
   }
 
   let opVerdict: string
-  if (pm < -50) {
+  if (pm < -100) {
     opVerdict = '运营完全失控，投入产出严重倒挂——钱不是花在刀刃上，是在烧炉子取暖。得先活下来再谈效率'
+  } else if (pm < -30) {
+    opVerdict = '运营效率极差，成本结构有严重问题——每一块钱投进去大半都在空转'
+  } else if (pm < 0) {
+    opVerdict = '运营效率偏低，成本还是压不下来——得重新捋成本结构找到省钱空间'
   } else if (opScore >= 75) {
     opVerdict = '运营效率高，钱花在刀刃上了——老板是个会算账的'
   } else if (opScore >= 55) {
     opVerdict = '运营中规中矩，没大浪费但还有精益空间——可以再抠一抠'
   } else if (opScore >= 35) {
     opVerdict = '运营效率偏低，要么人效不高要么在烧冤枉钱——得重新捋成本结构'
-  } else {
+  } else if (pm >= 0) {
     opVerdict = '运营效率极差，成本结构有严重问题——每一块钱投进去大半都在空转'
+  } else {
+    opVerdict = '运营效率堪忧，投入产出比失衡——先止血再优化'
   }
 
   let debtVerdict: string
@@ -499,7 +520,9 @@ function localValuationEngine(d: any) {
 
   // 报告 — HSR翻译层输出（区分盈亏场景）
   let oneLiner: string
-  if (pm < -100) {
+  if (annualRevenue <= 0 && annualCost > 0) {
+    oneLiner = `${name || '项目'}是个${pe.label}赛道的${archetype.name}，还没有营收（年投入${Math.abs(npW)}万），现在谈估值太早——核心是验证商业模型跑出第一批付费用户`
+  } else if (pm < -100) {
     oneLiner = `${name || '项目'}是个${pe.label}赛道的${archetype.name}，年亏${Math.abs(npW)}万，成本严重倒挂——现在不是谈估值的时候，是紧急抢救的时候`
   } else if (pm < 0) {
     oneLiner = `${name || '项目'}是个${pe.label}赛道的${archetype.name}，目前在亏损（年亏${Math.abs(npW)}万），${totalScore >= 40 ? '但基本面有可救之处，关键看成本控制' : '风险点多需要大幅整改后再谈融资'}`
@@ -589,7 +612,7 @@ function localValuationEngine(d: any) {
       debtRisk: { score: Math.round(debtScore), verdict: debtVerdict, confidence: debtRatio > 0 ? 0.85 : 0.3 }
     },
     // 异常指标检测 — HSR引力透镜：数据偏离行业基准时自动Flag
-    anomalies: buildAnomalies(d, pe),
+    anomalies: buildAnomalies(d, pe, costMultiple),
     dealParams: {
       suggestedPE: sugPE,
       suggestedStake: sugStake,
@@ -608,7 +631,7 @@ function localValuationEngine(d: any) {
       circuitBreaker
     },
     // 老板视角翻译 — 场景化大白话
-    ownerView: buildOwnerView(d, { npWan, revWan, pm, pe, dailyFlowK, archetype, totalScore, cashScore, growthScore, conservativeVal: conservativeVal * growthMultiplier, neutralVal: neutralVal * growthMultiplier, optimisticVal: optimisticVal * growthMultiplier }),
+    ownerView: buildOwnerView(d, { npWan, revWan, pm, pe, dailyFlowK, archetype, totalScore, cashScore, growthScore, conservativeVal: conservativeVal * growthMultiplier, neutralVal: neutralVal * growthMultiplier, optimisticVal: optimisticVal * growthMultiplier, costMultiple }),
     // 风控视角 — 补充材料清单+减缓条款
     riskView: buildRiskView(d, { pe, debtScore, cashScore }),
     report: {
@@ -619,22 +642,28 @@ function localValuationEngine(d: any) {
       investorPitch
     },
     // 结构化行动建议 — 红黄绿优先级
-    actionItems: buildActionItems(d, { profitScore, cashScore, growthScore, scaleScore, opScore, debtScore, pm, pe })
+    actionItems: buildActionItems(d, { profitScore, cashScore, growthScore, scaleScore, opScore, debtScore, pm, pe, costMultiple })
   }
 }
 
 // ==================== 老板视角翻译（一体千面核心：同一数据，场景化对话） ====================
 function buildOwnerView(d: any, s: any): any {
+  const costMultiple = s.costMultiple || 0
   const lines = []
   // 核心指标 — 像坐下来跟老板聊天（区分盈亏）
-  if (s.npWan > 0) {
+  if (d.annualRevenue <= 0 && d.annualCost > 0) {
+    // 零营收场景
+    lines.push({ label: '你一年净投入', value: `${Math.abs(Math.round(s.npWan))}万`, note: '还没有营收，纯投入期——核心是尽快跑出收入模型', sentiment: 'negative' })
+  } else if (s.npWan > 0) {
     lines.push({ label: '你一年净赚', value: `${Math.round(s.npWan)}万`, note: `利润率${s.pm.toFixed(0)}%，在${s.pe.label}赛道${s.pm > 15 ? '算不错的' : '偏薄了'}`, sentiment: s.pm > 15 ? 'positive' : 'neutral' })
   } else if (s.npWan > -10) {
     lines.push({ label: '你一年净亏', value: `${Math.abs(Math.round(s.npWan))}万`, note: `利润率${s.pm.toFixed(1)}%，基本不赚不亏——得找到提利润的抓手`, sentiment: 'neutral' })
   } else if (s.pm > -100) {
     lines.push({ label: '你一年净亏', value: `${Math.abs(Math.round(s.npWan))}万`, note: `利润率${s.pm.toFixed(0)}%，成本严重超支——做得越多亏得越多`, sentiment: 'negative' })
+  } else if (d.annualRevenue > 0) {
+    lines.push({ label: '你一年净亏', value: `${Math.abs(Math.round(s.npWan))}万`, note: `利润率${s.pm.toFixed(0)}%，成本是收入的${costMultiple}倍，项目在疯狂失血`, sentiment: 'negative' })
   } else {
-    lines.push({ label: '你一年净亏', value: `${Math.abs(Math.round(s.npWan))}万`, note: `利润率${s.pm.toFixed(0)}%，成本是收入的${Math.abs(Math.round(s.pm / 100 + 1)) + 1}倍以上，项目在疯狂失血`, sentiment: 'negative' })
+    lines.push({ label: '你一年净亏', value: `${Math.abs(Math.round(s.npWan))}万`, note: '还没有营收，纯烧钱阶段——核心是尽快跑出收入模型', sentiment: 'negative' })
   }
   if (d.dailyCashFlow > 0) {
     lines.push({ label: '每天进账', value: `${s.dailyFlowK}K`, note: `一个月下来大概${Math.round(d.dailyCashFlow * 30 / 10000)}万流水`, sentiment: 'positive' })
@@ -711,7 +740,7 @@ function buildRiskView(d: any, s: any): any {
 }
 
 // ==================== 异常检测（HSR 引力透镜 / 暗质量探测） ==
-function buildAnomalies(d: any, pe: any): any[] {
+function buildAnomalies(d: any, pe: any, costMultiple: number = 0): any[] {
   const anomalies: any[] = []
   // 退款率异常
   if (d.refundRate > 0.05) {
@@ -743,7 +772,7 @@ function buildAnomalies(d: any, pe: any): any[] {
       benchmark: `${pe.label}赛道一般8~15%`,
       deviation: `严重倒挂`,
       severity: 'HIGH',
-      impact: `成本是收入的${Math.abs(Math.round(d.profitMargin)) + 1}倍以上——项目在加速失血，每运营一天都在扩大窟窿`
+      impact: `成本是收入的${costMultiple || '∞'}倍——项目在加速失血，每运营一天都在扩大窟窿`
     })
   } else if (d.profitMargin < -0.1) {
     anomalies.push({
@@ -780,13 +809,14 @@ function buildAnomalies(d: any, pe: any): any[] {
 
 // ==================== 结构化行动建议（红黄绿优先级排序）====================
 function buildActionItems(d: any, scores: any): any[] {
+  const costMultiple = scores.costMultiple || 0
   const items: any[] = []
   // 红色（最优先）
   if (d.refundRate > 0.08) {
     items.push({ priority: 'red', text: `退款率${(d.refundRate * 100).toFixed(0)}%太高，先压到5%以下——这一项改好就能直接提分` })
   }
   if (scores.pm < -100) {
-    items.push({ priority: 'red', text: `成本是收入的${Math.abs(Math.round(scores.pm / 100 + 1)) + 1}倍以上，项目在疯狂失血——必须立刻做减法：砍产品线、砍团队、砍一切不产生收入的支出` })
+    items.push({ priority: 'red', text: `成本是收入的${costMultiple}倍，项目在疯狂失血——必须立刻做减法：砍产品线、砍团队、砍一切不产生收入的支出` })
   } else if (scores.pm < -30) {
     items.push({ priority: 'red', text: '亏损严重，成本结构完全失控——先做一轮紧急成本审计，找到最大的出血点堵上' })
   } else if (scores.pm < 0) {
