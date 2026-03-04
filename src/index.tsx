@@ -120,6 +120,38 @@ async function callLLM(apiKey: string, baseUrl: string, data: any) {
     "risks": ["核心风险1(行业话+为什么危险)", "风险2", "风险3"],
     "actionPlan": "给老板的造局路线图(2-3句，先干什么再干什么，有节奏感)",
     "investorPitch": "帮老板写好见投资人的开场白(3-4句，数据+故事+要什么)"
+  },
+  "anomalies": [
+    {"field": "异常指标名", "value": "实际值", "benchmark": "同行基准", "deviation": "偏离百分比", "severity": "HIGH/MEDIUM", "impact": "用行业话解释这个异常为什么危险(15-25字)"}
+  ],
+  "actionItems": [
+    {"priority": "red/yellow/green", "text": "具体行动建议(行业话，15-30字)"}
+  ],
+  "ownerView": {
+    "lines": [
+      {"label": "你一年净赚", "value": "28.5万", "note": "利润率15.4%，在餐饮赛道算不错的", "sentiment": "positive/neutral/negative"},
+      {"label": "增长速度", "value": "18%", "note": "你这个增速在同行里算快的", "sentiment": "positive"}
+    ],
+    "valSummary": "按餐饮赛道标准来看，你的项目大概值125~254万。中间价190万——这个数拿去跟投资人谈，有底气。",
+    "typeSummary": "你是个「稳盘型」—— 利润稳增长稳，像一条运河，水流不急但一直在流",
+    "score": 72
+  },
+  "pricingInputs": {
+    "deathProb": 10,
+    "paybackDays": 173,
+    "baselineDailyRevenue": 61667,
+    "priorityRatio": 50,
+    "upsideMultiplier": 1.5,
+    "regimeTier": "中",
+    "monitorFreq": "月度",
+    "circuitBreaker": "月营收连续2个月下降超过40%触发回购条款"
+  },
+  "riskView": {
+    "requiredDocs": ["近6个月银行流水", "近12个月损益表", "负债明细", "租赁合同"],
+    "mitigations": [
+      {"text": "退款率KPI条款：退款率需在6个月内降至5%以下", "priority": "red"},
+      {"text": "信息披露义务：按月/季提供经营数据报表", "priority": "green"}
+    ]
   }
 }
 
@@ -135,6 +167,26 @@ async function callLLM(apiKey: string, baseUrl: string, data: any) {
 - ✅ "账面数据和扩张速度对不上——要么有没上报的负债，要么有对赌在推着跑，得扒一扒" → 行业话翻译
 
 核心原则：每个物理概念都必须找到行业对应物，用做生意的人天天说的话来表达。让用户觉得"这个分析师就是我们这行的人"，而不是"这是个搞数学的"。
+
+## 异常检测与行动建议
+- anomalies: 如果某个数据明显偏离行业基准（如退款率远超同行），必须Flag出来，severity分HIGH/MEDIUM
+- actionItems: 给出3-5条结构化行动建议，按优先级标色：red(立刻要做)、yellow(近期优化)、green(保持不变)
+- 每条建议都要用行业话说，告诉老板"具体干什么"而不是"建议优化XX指标"
+
+## 一体千面翻译核心 — ownerView（老板视角）
+ownerView 是整个报告最重要的部分——把同一套物理引擎的数据，翻译成坐下来跟老板喝茶聊天的话：
+- lines里每一条都要用"你"开头的场景化表达，如：你一年净赚28.5万、每天进账6万多、增长18%在同行里算快的
+- note要像FA坐在对面跟老板说的话，不能有任何物理/数学术语
+- sentiment标注这条信息对老板来说是好消息(positive)、一般(neutral)还是坏消息(negative)
+- valSummary用一段大白话告诉老板项目值多少钱
+- typeSummary告诉老板他是什么类型
+
+## pricingInputs — 实操定价参数
+给出交易方需要的实操参数：死亡概率、预计回本天数、基准日流水、截留比例、上浮倍数、风险等级、监控频率、熔断条件
+
+## riskView — 风控清单
+- requiredDocs: 需要补充的材料清单（验证数据真实性的证据）
+- mitigations: 减缓条款建议，按red/yellow/green标优先级
 
 请务必只返回 JSON，不要加 \`\`\`json 标记。`
 
@@ -347,6 +399,18 @@ function localValuationEngine(d: any) {
     '关键条件：锁定未来12个月营收增长不低于' + Math.round(growthRate * 50) + '%，否则估值回调' :
     '关键条件：季度利润不低于当前水平的80%，确保基本盘稳固'
 
+  // ===== 定价参数（截留比例/回本天数/熔断条件 — 实操级） =====
+  const deathProb = debtRatio > 0.5 ? 0.15 : debtRatio > 0.3 ? 0.10 : 0.05
+  const dailyNetFlow = dailyCashFlow - (dailyCost || annualCost / 365)
+  const paybackDays = dailyNetFlow > 0 ? Math.round(neutralVal * 10000 / dailyNetFlow) : 999
+  const priorityRatio = totalScore >= 75 ? 0.5 : totalScore >= 55 ? 0.6 : 0.7
+  const upsideMultiplier = growthRate > 0.3 ? 2.0 : growthRate > 0.15 ? 1.5 : 1.2
+  const regimeTier = totalScore >= 75 ? '低' : totalScore >= 55 ? '中' : '高'
+  const monitorFreq = totalScore >= 75 ? '季度' : '月度'
+  const circuitBreaker = growthRate > 0.15 ?
+    `月营收连续2个月下降超过${Math.round(growthRate * 80)}%触发回购条款` :
+    `季度利润低于当前水平60%触发回购条款`
+
   // 报告 — HSR翻译层输出
   const oneLiner = `${name || '项目'}是个${pe.label}赛道的${archetype.name}，年利润${npW}万，${totalScore >= 70 ? '基本面扎实值得深入尽调' : totalScore >= 50 ? '有亮点但得重点盯风控' : '风险点不少建议审慎看'}`
 
@@ -385,27 +449,210 @@ function localValuationEngine(d: any) {
       confidence
     },
     dimensions: {
-      profitability: { score: Math.round(profitScore), verdict: profitVerdict },
-      cashQuality: { score: Math.round(cashScore), verdict: cashVerdict },
-      growthTrend: { score: Math.round(growthScore), verdict: growthVerdict },
-      scaleVolume: { score: Math.round(scaleScore), verdict: scaleVerdict },
-      operationEfficiency: { score: Math.round(opScore), verdict: opVerdict },
-      debtRisk: { score: Math.round(debtScore), verdict: debtVerdict }
+      profitability: { score: Math.round(profitScore), verdict: profitVerdict, confidence: 0.9 },
+      cashQuality: { score: Math.round(cashScore), verdict: cashVerdict, confidence: turnoverDays > 0 ? 0.8 : 0.4 },
+      growthTrend: { score: Math.round(growthScore), verdict: growthVerdict, confidence: growthRate > 0 ? 0.7 : 0.3 },
+      scaleVolume: { score: Math.round(scaleScore), verdict: scaleVerdict, confidence: 0.85 },
+      operationEfficiency: { score: Math.round(opScore), verdict: opVerdict, confidence: employeeCount > 0 ? 0.7 : 0.35 },
+      debtRisk: { score: Math.round(debtScore), verdict: debtVerdict, confidence: debtRatio > 0 ? 0.85 : 0.3 }
     },
+    // 异常指标检测 — HSR引力透镜：数据偏离行业基准时自动Flag
+    anomalies: buildAnomalies(d, pe),
     dealParams: {
       suggestedPE: sugPE,
       suggestedStake: sugStake,
       dealStructure: dealStruct,
       keyCondition: keyCond
     },
+    // 定价参数 — 实操级交易条件
+    pricingInputs: {
+      deathProb: Math.round(deathProb * 100),
+      paybackDays,
+      baselineDailyRevenue: Math.round(dailyCashFlow),
+      priorityRatio: Math.round(priorityRatio * 100),
+      upsideMultiplier,
+      regimeTier,
+      monitorFreq,
+      circuitBreaker
+    },
+    // 老板视角翻译 — 场景化大白话
+    ownerView: buildOwnerView(d, { npWan, revWan, pm, pe, dailyFlowK, archetype, totalScore, cashScore, growthScore, conservativeVal: conservativeVal * growthMultiplier, neutralVal: neutralVal * growthMultiplier, optimisticVal: optimisticVal * growthMultiplier }),
+    // 风控视角 — 补充材料清单+减缓条款
+    riskView: buildRiskView(d, { pe, debtScore, cashScore }),
     report: {
       oneLiner,
       strengths,
       risks,
       actionPlan,
       investorPitch
-    }
+    },
+    // 结构化行动建议 — 红黄绿优先级
+    actionItems: buildActionItems(d, { profitScore, cashScore, growthScore, scaleScore, opScore, debtScore, pm, pe })
   }
+}
+
+// ==================== 老板视角翻译（一体千面核心：同一数据，场景化对话） ====================
+function buildOwnerView(d: any, s: any): any {
+  const lines = []
+  // 核心指标 — 像坐下来跟老板聊天
+  if (s.npWan > 0) {
+    lines.push({ label: '你一年净赚', value: `${Math.round(s.npWan)}万`, note: `利润率${s.pm.toFixed(0)}%，在${s.pe.label}赛道${s.pm > 15 ? '算不错的' : '偏薄了'}`, sentiment: s.pm > 15 ? 'positive' : 'neutral' })
+  }
+  if (d.dailyCashFlow > 0) {
+    lines.push({ label: '每天进账', value: `${s.dailyFlowK}K`, note: `一个月下来大概${Math.round(d.dailyCashFlow * 30 / 10000)}万流水`, sentiment: 'positive' })
+  }
+  if (d.growthRate > 0) {
+    const g = Math.round(d.growthRate * 100)
+    lines.push({ label: '增长速度', value: `${g}%`, note: g > 20 ? '你这个增速在同行里算快的，投资人会感兴趣' : g > 10 ? '稳步增长，不算爆发但方向对' : '增速一般，可能需要找新的增长点', sentiment: g > 15 ? 'positive' : g > 5 ? 'neutral' : 'negative' })
+  }
+  if (d.refundRate > 0) {
+    const rr = Math.round(d.refundRate * 100)
+    lines.push({ label: '退款率', value: `${rr}%`, note: rr > 8 ? `同行一般3~5%，你的偏高——每退一单利润就少一截` : rr > 5 ? '稍高于同行平均，可以优化一下' : '控制得不错', sentiment: rr > 8 ? 'negative' : rr > 5 ? 'neutral' : 'positive' })
+  }
+  if (d.debtRatio > 0) {
+    const dr = Math.round(d.debtRatio * 100)
+    lines.push({ label: '负债率', value: `${dr}%`, note: dr > 40 ? '偏高了，投资人看到会紧张——建议先降一降' : dr > 25 ? '可控范围，但谈融资前能降一点更好' : '很健康，轻装上阵', sentiment: dr > 40 ? 'negative' : dr > 25 ? 'neutral' : 'positive' })
+  }
+  if (d.turnoverDays > 0) {
+    lines.push({ label: '资金周转', value: `${d.turnoverDays}天`, note: d.turnoverDays <= 7 ? '钱转得很快，一周一个循环——现金流是你最大的底牌' : d.turnoverDays <= 15 ? '两周一转，还行' : '周转偏慢，钱卡在路上了', sentiment: d.turnoverDays <= 7 ? 'positive' : d.turnoverDays <= 15 ? 'neutral' : 'negative' })
+  }
+  if (d.employeeCount > 0 && d.annualRevenue > 0) {
+    const perCap = Math.round(d.annualRevenue / d.employeeCount / 10000)
+    lines.push({ label: '人均产出', value: `${perCap}万/人/年`, note: perCap > 50 ? '人效很高，团队精干能打' : perCap > 25 ? '人效中等，还有提升空间' : '人效偏低，可能人多了或者产出没跟上', sentiment: perCap > 50 ? 'positive' : perCap > 25 ? 'neutral' : 'negative' })
+  }
+
+  // 你的项目值多少钱 — 场景化
+  const valSummary = `按${s.pe.label}赛道标准来看，你的项目大概值${Math.round(s.conservativeVal)}~${Math.round(s.optimisticVal)}万。中间价${Math.round(s.neutralVal)}万——这个数拿去跟投资人谈，有底气。`
+
+  // 你是什么类型
+  const typeSummary = `你是个「${s.archetype.name}」—— ${s.archetype.desc}`
+
+  return { lines, valSummary, typeSummary, score: s.totalScore }
+}
+
+// ==================== 风控视角（补充材料+减缓条款） ====================
+function buildRiskView(d: any, s: any): any {
+  const requiredDocs = []
+  const mitigations = []
+
+  // 通用必要材料
+  requiredDocs.push('近6个月银行流水（验证日流水真实性）')
+  requiredDocs.push('近12个月损益表（验证利润率）')
+  if (d.refundRate > 0.05) {
+    requiredDocs.push('退款明细分类（区分质量问题/客户主动/恶意退款）')
+    mitigations.push({ text: `退款率KPI条款：退款率需在6个月内降至${Math.min(8, Math.round(d.refundRate * 50))}%以下`, priority: 'red' })
+  }
+  if (d.debtRatio > 0.3) {
+    requiredDocs.push('负债明细及还款计划')
+    mitigations.push({ text: '限制新增有息负债条款：融资存续期内不得新增银行贷款', priority: d.debtRatio > 0.5 ? 'red' : 'yellow' })
+  }
+  if (s.cashScore < 60) {
+    requiredDocs.push('应收账款账龄分析')
+  }
+  requiredDocs.push('租赁合同/经营场所证明')
+  requiredDocs.push('主要供应商/客户合同（前3大）')
+  if (d.employeeCount > 5) {
+    requiredDocs.push('员工花名册及社保缴纳证明')
+  }
+
+  // 减缓条款
+  if (d.profitMargin < 0.1) {
+    mitigations.push({ text: '利润率保护条款：连续两季度利润率低于8%触发估值调整', priority: 'yellow' })
+  }
+  mitigations.push({ text: '信息披露义务：按月/季提供经营数据报表', priority: 'green' })
+  mitigations.push({ text: '重大事项通知：涉及核心团队变动、重大诉讼需提前通知', priority: 'green' })
+
+  return { requiredDocs, mitigations }
+}
+
+// ==================== 异常检测（HSR 引力透镜 / 暗质量探测） ==
+function buildAnomalies(d: any, pe: any): any[] {
+  const anomalies: any[] = []
+  // 退款率异常
+  if (d.refundRate > 0.05) {
+    anomalies.push({
+      field: '退款率',
+      value: `${(d.refundRate * 100).toFixed(1)}%`,
+      benchmark: `同行一般3~5%`,
+      deviation: `+${Math.round((d.refundRate / 0.04 - 1) * 100)}%`,
+      severity: d.refundRate > 0.1 ? 'HIGH' : 'MEDIUM',
+      impact: '退款率每高1个点，实际利润就少一截——钱赚了又退回去等于白忙活'
+    })
+  }
+  // 负债率异常
+  if (d.debtRatio > 0.35) {
+    anomalies.push({
+      field: '负债率',
+      value: `${(d.debtRatio * 100).toFixed(1)}%`,
+      benchmark: `行业安全线30%以下`,
+      deviation: `+${Math.round((d.debtRatio / 0.3 - 1) * 100)}%`,
+      severity: d.debtRatio > 0.6 ? 'HIGH' : 'MEDIUM',
+      impact: '杠杆拉高了，遇到风吹草动容易现金流断裂'
+    })
+  }
+  // 利润率异常低
+  if (d.profitMargin < 0.05 && d.annualRevenue > 500000) {
+    anomalies.push({
+      field: '利润率',
+      value: `${(d.profitMargin * 100).toFixed(1)}%`,
+      benchmark: `${pe.label}赛道一般8~15%`,
+      deviation: `偏低`,
+      severity: 'HIGH',
+      impact: '营收不小但利润薄如纸——增长越快可能亏越多，先查成本结构'
+    })
+  }
+  // 增长率异常高（可能数据有水分）
+  if (d.growthRate > 0.5) {
+    anomalies.push({
+      field: '增长率',
+      value: `${(d.growthRate * 100).toFixed(0)}%`,
+      benchmark: `${pe.label}赛道平均5~15%`,
+      deviation: `+${Math.round((d.growthRate / 0.1 - 1) * 100)}%`,
+      severity: 'MEDIUM',
+      impact: '增速太猛要核实——是真需求驱动还是补贴/促销拉出来的虚火'
+    })
+  }
+  return anomalies
+}
+
+// ==================== 结构化行动建议（红黄绿优先级排序）====================
+function buildActionItems(d: any, scores: any): any[] {
+  const items: any[] = []
+  // 红色（最优先）
+  if (d.refundRate > 0.08) {
+    items.push({ priority: 'red', text: `退款率${(d.refundRate * 100).toFixed(0)}%太高，先压到5%以下——这一项改好就能直接提分` })
+  }
+  if (scores.pm < 0.05) {
+    items.push({ priority: 'red', text: '利润率在生死线上，先砍掉不赚钱的业务线或重新谈供应商价格' })
+  }
+  if (d.debtRatio > 0.6) {
+    items.push({ priority: 'red', text: '负债率过高，先做债务优化——投资人看到高杠杆第一反应是砍估值' })
+  }
+  // 黄色（次优先）
+  if (d.debtRatio > 0.3 && d.debtRatio <= 0.6) {
+    items.push({ priority: 'yellow', text: `负债率${(d.debtRatio * 100).toFixed(0)}%偏高，逐步降到25%以下，谈判桌上底气会更足` })
+  }
+  if (scores.growthScore < 50 && scores.profitScore > 60) {
+    items.push({ priority: 'yellow', text: '利润还行但增长见顶了——找第二增长引擎，可以看新渠道或新品类' })
+  }
+  if (scores.opScore < 55) {
+    items.push({ priority: 'yellow', text: '运营效率有提升空间——检查人效和费用结构，每省1%成本就是纯利润' })
+  }
+  // 绿色（保持）
+  if (scores.profitScore >= 70) {
+    items.push({ priority: 'green', text: `利润率${scores.pm > 1 ? (scores.pm).toFixed(0) : (scores.pm * 100).toFixed(0)}%在赛道里跑赢同行，继续保持这个节奏` })
+  }
+  if (scores.cashScore >= 70) {
+    items.push({ priority: 'green', text: '现金流健康，钱在转——这是项目最硬的底牌，别动' })
+  }
+  if (scores.growthScore >= 65) {
+    items.push({ priority: 'green', text: '增长势头不错，维持住就能给投资人讲好增长故事' })
+  }
+  // 保证至少有3条
+  if (items.length < 3) {
+    items.push({ priority: 'green', text: '持续积累经营数据，数据越完整下次体检诊断越准' })
+  }
+  return items
 }
 
 // Main page

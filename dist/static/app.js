@@ -1801,6 +1801,103 @@ function renderValuationResult(r) {
     return '<div class="flex items-start gap-2"><span class="text-error text-xs mt-0.5 flex-shrink-0"><i class="fas fa-exclamation-circle"></i></span><p class="text-gray-600 text-xs leading-relaxed">' + escapeHtml(s) + '</p></div>';
   }).join('');
 
+  // 异常指标 Flag — HSR引力透镜检测
+  var anomalies = r.anomalies || [];
+  var anomaliesHtml = anomalies.length > 0 ? anomalies.map(function(a) {
+    var sevColor = a.severity === 'HIGH' ? 'bg-red-50 border-red-200' : 'bg-amber-50 border-amber-200';
+    var sevIcon = a.severity === 'HIGH' ? '<i class="fas fa-exclamation-circle text-error"></i>' : '<i class="fas fa-exclamation-triangle text-warning"></i>';
+    var sevLabel = a.severity === 'HIGH' ? '<span class="text-xs font-bold text-error">高风险</span>' : '<span class="text-xs font-bold text-warning">关注</span>';
+    return '<div class="p-3 rounded-xl border ' + sevColor + '">' +
+      '<div class="flex items-center justify-between mb-1.5">' +
+        '<span class="text-xs font-bold text-gray-800 flex items-center gap-1.5">' + sevIcon + ' ' + escapeHtml(a.field) + '</span>' +
+        sevLabel +
+      '</div>' +
+      '<div class="flex items-center gap-3 text-xs mb-1.5">' +
+        '<span class="text-gray-500">实际 <strong class="text-gray-800">' + escapeHtml(a.value) + '</strong></span>' +
+        '<span class="text-gray-300">|</span>' +
+        '<span class="text-gray-500">同行 <strong class="text-gray-800">' + escapeHtml(a.benchmark) + '</strong></span>' +
+        (a.deviation ? '<span class="px-1.5 py-0.5 rounded text-xs font-medium ' + (a.severity === 'HIGH' ? 'bg-red-100 text-red-600' : 'bg-amber-100 text-amber-600') + '">' + escapeHtml(a.deviation) + '</span>' : '') +
+      '</div>' +
+      '<p class="text-xs text-gray-500">' + escapeHtml(a.impact || '') + '</p>' +
+    '</div>';
+  }).join('') : '';
+
+  // 结构化行动建议 — 红黄绿
+  var actionItems = r.actionItems || [];
+  var actionItemsHtml = actionItems.map(function(item) {
+    var pColor = item.priority === 'red' ? 'border-l-4 border-l-error bg-red-50/50' :
+                 item.priority === 'yellow' ? 'border-l-4 border-l-warning bg-amber-50/50' :
+                 'border-l-4 border-l-success bg-emerald-50/50';
+    var pIcon = item.priority === 'red' ? '<span class="w-5 h-5 rounded-full bg-error text-white text-xs flex items-center justify-center flex-shrink-0 font-bold">!</span>' :
+               item.priority === 'yellow' ? '<span class="w-5 h-5 rounded-full bg-warning text-white text-xs flex items-center justify-center flex-shrink-0 font-bold">→</span>' :
+               '<span class="w-5 h-5 rounded-full bg-success text-white text-xs flex items-center justify-center flex-shrink-0 font-bold">✓</span>';
+    return '<div class="p-3 rounded-lg ' + pColor + ' flex items-start gap-2.5">' +
+      pIcon +
+      '<p class="text-xs text-gray-700 leading-relaxed flex-1">' + escapeHtml(item.text) + '</p>' +
+    '</div>';
+  }).join('');
+
+  // ★ 老板视角 — 一体千面翻译核心
+  var ownerView = r.ownerView || {};
+  var ownerLines = ownerView.lines || [];
+  var ownerViewHtml = ownerLines.map(function(line) {
+    var sentimentIcon = line.sentiment === 'positive' ? '<i class="fas fa-arrow-up text-success text-xs"></i>' :
+                        line.sentiment === 'negative' ? '<i class="fas fa-arrow-down text-error text-xs"></i>' :
+                        '<i class="fas fa-minus text-gray-400 text-xs"></i>';
+    var sentimentBg = line.sentiment === 'positive' ? 'bg-emerald-50/70 border-emerald-100' :
+                      line.sentiment === 'negative' ? 'bg-red-50/70 border-red-100' :
+                      'bg-gray-50/70 border-gray-100';
+    return '<div class="p-3 rounded-xl border ' + sentimentBg + '">' +
+      '<div class="flex items-center justify-between mb-1">' +
+        '<span class="text-xs text-gray-500 font-medium">' + escapeHtml(line.label) + '</span>' +
+        '<div class="flex items-center gap-1.5">' + sentimentIcon + '<span class="text-sm font-bold text-gray-800">' + escapeHtml(line.value) + '</span></div>' +
+      '</div>' +
+      '<p class="text-xs text-gray-500 leading-relaxed">' + escapeHtml(line.note || '') + '</p>' +
+    '</div>';
+  }).join('');
+
+  // ★ 定价参数
+  var pricing = r.pricingInputs || {};
+  var pricingHtml = '';
+  if (pricing.paybackDays || pricing.priorityRatio) {
+    var pricingItems = [];
+    if (pricing.regimeTier) pricingItems.push({ label: '风险等级', value: pricing.regimeTier, icon: 'fa-shield-alt' });
+    if (pricing.deathProb) pricingItems.push({ label: '违约概率', value: pricing.deathProb + '%', icon: 'fa-exclamation-triangle' });
+    if (pricing.paybackDays) pricingItems.push({ label: '预计回本', value: pricing.paybackDays + '天', icon: 'fa-clock' });
+    if (pricing.baselineDailyRevenue) pricingItems.push({ label: '基准日流水', value: Math.round(pricing.baselineDailyRevenue).toLocaleString() + '元', icon: 'fa-chart-line' });
+    if (pricing.priorityRatio) pricingItems.push({ label: '截留比例', value: pricing.priorityRatio + '%', icon: 'fa-percentage' });
+    if (pricing.upsideMultiplier) pricingItems.push({ label: '上浮倍数', value: pricing.upsideMultiplier + 'x', icon: 'fa-arrow-up' });
+    if (pricing.monitorFreq) pricingItems.push({ label: '监控频率', value: pricing.monitorFreq, icon: 'fa-eye' });
+    if (pricing.circuitBreaker) pricingItems.push({ label: '熔断条件', value: pricing.circuitBreaker, icon: 'fa-bolt' });
+    pricingHtml = pricingItems.map(function(p) {
+      var isWide = p.label === '熔断条件';
+      return '<div class="' + (isWide ? 'col-span-2' : '') + ' p-2.5 rounded-lg bg-gray-50 border border-gray-100">' +
+        '<div class="flex items-center gap-1.5 mb-0.5"><i class="fas ' + p.icon + ' text-gray-400 text-xs"></i><span class="text-xs text-gray-400">' + escapeHtml(p.label) + '</span></div>' +
+        '<p class="text-xs font-semibold text-gray-700">' + escapeHtml(String(p.value)) + '</p>' +
+      '</div>';
+    }).join('');
+  }
+
+  // ★ 风控视角
+  var riskView = r.riskView || {};
+  var riskViewHtml = '';
+  if ((riskView.requiredDocs && riskView.requiredDocs.length) || (riskView.mitigations && riskView.mitigations.length)) {
+    if (riskView.requiredDocs && riskView.requiredDocs.length) {
+      riskViewHtml += '<p class="text-xs text-gray-500 font-semibold mb-2 flex items-center gap-1.5"><i class="fas fa-folder-open text-gray-400"></i> 需要补充的材料</p>';
+      riskViewHtml += '<div class="space-y-1.5 mb-4">' + riskView.requiredDocs.map(function(doc) {
+        return '<div class="flex items-start gap-2 text-xs text-gray-600"><i class="fas fa-file-alt text-gray-300 mt-0.5 flex-shrink-0"></i><span>' + escapeHtml(doc) + '</span></div>';
+      }).join('') + '</div>';
+    }
+    if (riskView.mitigations && riskView.mitigations.length) {
+      riskViewHtml += '<p class="text-xs text-gray-500 font-semibold mb-2 flex items-center gap-1.5"><i class="fas fa-gavel text-gray-400"></i> 建议减缓条款</p>';
+      riskViewHtml += '<div class="space-y-1.5">' + riskView.mitigations.map(function(m) {
+        var mColor = m.priority === 'red' ? 'text-error' : m.priority === 'yellow' ? 'text-warning' : 'text-success';
+        var mIcon = m.priority === 'red' ? 'fa-exclamation-circle' : m.priority === 'yellow' ? 'fa-exclamation-triangle' : 'fa-check-circle';
+        return '<div class="flex items-start gap-2 text-xs text-gray-600"><i class="fas ' + mIcon + ' ' + mColor + ' mt-0.5 flex-shrink-0"></i><span>' + escapeHtml(m.text) + '</span></div>';
+      }).join('') + '</div>';
+    }
+  }
+
   resultEl.innerHTML =
     // 综合评分卡片 — 白色卡片 + 渐变背景
     '<div class="mx-4 mt-4 bg-white rounded-2xl shadow-finance border border-gray-100 overflow-hidden">' +
@@ -1825,6 +1922,16 @@ function renderValuationResult(r) {
       '</div>' +
     '</div>' +
 
+    // ★ 老板视角 — 一体千面翻译核心面板
+    (ownerViewHtml ? '<div class="mx-4 mt-3 bg-white rounded-2xl shadow-finance border border-gray-100 overflow-hidden">' +
+      '<div class="p-4 bg-gradient-to-r from-amber-50/80 to-yellow-50/80 border-b border-amber-100">' +
+        '<div class="flex items-center gap-2"><i class="fas fa-user-tie text-accent"></i><span class="text-gray-800 font-bold text-sm">老板，你的项目体检单</span><span class="text-xs text-gray-400 ml-auto">一体千面 · 翻译版</span></div>' +
+      '</div>' +
+      '<div class="p-4 space-y-3">' + ownerViewHtml + '</div>' +
+      (r.ownerView && r.ownerView.valSummary ? '<div class="mx-4 mb-4 p-3 rounded-xl bg-gradient-to-r from-primary/5 to-secondary/5 border border-primary/10"><p class="text-gray-800 text-xs font-medium leading-relaxed"><i class="fas fa-coins text-accent mr-1.5"></i>' + escapeHtml(r.ownerView.valSummary) + '</p></div>' : '') +
+      (r.ownerView && r.ownerView.typeSummary ? '<div class="mx-4 mb-4 p-3 rounded-xl bg-gray-50 border border-gray-100"><p class="text-gray-700 text-xs leading-relaxed"><i class="fas fa-dna text-purple-400 mr-1.5"></i>' + escapeHtml(r.ownerView.typeSummary) + '</p></div>' : '') +
+    '</div>' : '') +
+
     // 估值参考区间
     '<div class="mx-4 mt-3 bg-white rounded-2xl shadow-finance border border-gray-100 p-5">' +
       '<div class="flex items-center gap-2 mb-3"><i class="fas fa-coins text-accent"></i><span class="text-gray-800 font-bold text-sm">估值参考区间</span></div>' +
@@ -1843,6 +1950,12 @@ function renderValuationResult(r) {
       '<div class="flex flex-wrap gap-2 pt-3 border-t border-gray-100">' + dimTagsHtml + '</div>' +
     '</div>' +
 
+    // 异常指标 Flag（只在有异常时显示）
+    (anomaliesHtml ? '<div class="mx-4 mt-3 bg-white rounded-2xl shadow-finance border border-gray-100 p-5">' +
+      '<div class="flex items-center gap-2 mb-3"><i class="fas fa-radar text-error"></i><span class="text-gray-800 font-bold text-sm">异常指标 <span class="text-xs font-normal text-gray-400 ml-1">引擎检测到偏离行业基准的数据</span></span></div>' +
+      '<div class="space-y-2">' + anomaliesHtml + '</div>' +
+    '</div>' : '') +
+
     // 造局参数
     '<div class="mx-4 mt-3 bg-white rounded-2xl shadow-finance border border-gray-100 p-5">' +
       '<div class="flex items-center gap-2 mb-3"><i class="fas fa-bullseye text-accent"></i><span class="text-gray-800 font-bold text-sm">造局参数建议</span></div>' +
@@ -1853,6 +1966,12 @@ function renderValuationResult(r) {
         renderDealParam('关键条件', r.dealParams && r.dealParams.keyCondition) +
       '</div>' +
     '</div>' +
+
+    // ★ 定价参数（实操级）
+    (pricingHtml ? '<div class="mx-4 mt-3 bg-white rounded-2xl shadow-finance border border-gray-100 p-5">' +
+      '<div class="flex items-center gap-2 mb-3"><i class="fas fa-sliders-h text-secondary"></i><span class="text-gray-800 font-bold text-sm">定价参数</span><span class="text-xs text-gray-400 ml-1">交易实操参考</span></div>' +
+      '<div class="grid grid-cols-2 gap-2">' + pricingHtml + '</div>' +
+    '</div>' : '') +
 
     // 评估报告
     '<div class="mx-4 mt-3 bg-white rounded-2xl shadow-finance border border-gray-100 p-5">' +
@@ -1871,6 +1990,18 @@ function renderValuationResult(r) {
         '<p class="text-gray-700 text-xs leading-relaxed italic">"' + escapeHtml((r.report && r.report.investorPitch) || '') + '"</p>' +
       '</div>' +
     '</div>' +
+
+    // ★ 结构化行动建议（红黄绿）
+    (actionItemsHtml ? '<div class="mx-4 mt-3 bg-white rounded-2xl shadow-finance border border-gray-100 p-5">' +
+      '<div class="flex items-center gap-2 mb-3"><i class="fas fa-tasks text-primary"></i><span class="text-gray-800 font-bold text-sm">行动清单</span><span class="text-xs text-gray-400 ml-1">按优先级排序</span></div>' +
+      '<div class="space-y-2">' + actionItemsHtml + '</div>' +
+    '</div>' : '') +
+
+    // ★ 风控视角
+    (riskViewHtml ? '<div class="mx-4 mt-3 bg-white rounded-2xl shadow-finance border border-gray-100 p-5">' +
+      '<div class="flex items-center gap-2 mb-3"><i class="fas fa-shield-alt text-gray-500"></i><span class="text-gray-800 font-bold text-sm">风控清单</span><span class="text-xs text-gray-400 ml-1">尽调补充材料 & 减缓条款</span></div>' +
+      riskViewHtml +
+    '</div>' : '') +
 
     // 操作栏 — 统一金融风格
     '<div class="mx-4 mt-3 mb-6 flex gap-3">' +
@@ -1919,8 +2050,21 @@ function exportValuationReport() {
   var text = '═══════════════════════════════════\n';
   text += '  HSR 六维体检 · 估值评估报告\n';
   text += '═══════════════════════════════════\n\n';
-  text += '📋 项目：' + (fd.name || '未命名') + ' | 赛道：' + (fd.industry || '未指定') + '\n';
-  text += '📅 评估时间：' + new Date().toLocaleDateString('zh-CN') + '\n\n';
+  text += '项目：' + (fd.name || '未命名') + ' | 赛道：' + (fd.industry || '未指定') + '\n';
+  text += '评估时间：' + new Date().toLocaleDateString('zh-CN') + '\n\n';
+
+  // 老板视角
+  if (r.ownerView && r.ownerView.lines && r.ownerView.lines.length) {
+    text += '─── 老板，你的项目体检单 ───\n';
+    r.ownerView.lines.forEach(function(line) {
+      var arrow = line.sentiment === 'positive' ? '↑' : line.sentiment === 'negative' ? '↓' : '→';
+      text += '  ' + arrow + ' ' + line.label + '：' + line.value + ' — ' + (line.note || '') + '\n';
+    });
+    if (r.ownerView.valSummary) text += '\n  ' + r.ownerView.valSummary + '\n';
+    if (r.ownerView.typeSummary) text += '  ' + r.ownerView.typeSummary + '\n';
+    text += '\n';
+  }
+
   text += '─── 综合评分 ───\n';
   text += '评分：' + r.score + '/100 (' + r.grade + '级)\n';
   text += '项目DNA：' + r.archetype + ' — ' + r.archetypeDesc + '\n\n';
@@ -1934,19 +2078,69 @@ function exportValuationReport() {
     var d = dims[k] || {};
     text += '  ' + dimLabels[k] + ': ' + (d.score || '-') + '/100 — ' + (d.verdict || '') + '\n';
   });
+
+  // 异常指标
+  if (r.anomalies && r.anomalies.length) {
+    text += '\n─── 异常指标 ───\n';
+    r.anomalies.forEach(function(a) {
+      text += '  [' + a.severity + '] ' + a.field + '：实际 ' + a.value + ' vs 同行 ' + a.benchmark;
+      if (a.deviation) text += ' (' + a.deviation + ')';
+      text += '\n    → ' + (a.impact || '') + '\n';
+    });
+  }
+
   text += '\n─── 造局参数 ───\n';
   if (r.dealParams && r.dealParams.suggestedPE) text += '  PE倍数：' + r.dealParams.suggestedPE + '\n';
   if (r.dealParams && r.dealParams.suggestedStake) text += '  出让比例：' + r.dealParams.suggestedStake + '\n';
   if (r.dealParams && r.dealParams.dealStructure) text += '  交易结构：' + r.dealParams.dealStructure + '\n';
   if (r.dealParams && r.dealParams.keyCondition) text += '  关键条件：' + r.dealParams.keyCondition + '\n';
+
+  // 定价参数
+  if (r.pricingInputs) {
+    var pi = r.pricingInputs;
+    text += '\n─── 定价参数（实操级） ───\n';
+    if (pi.regimeTier) text += '  风险等级：' + pi.regimeTier + '\n';
+    if (pi.deathProb) text += '  违约概率：' + pi.deathProb + '%\n';
+    if (pi.paybackDays) text += '  预计回本：' + pi.paybackDays + '天\n';
+    if (pi.baselineDailyRevenue) text += '  基准日流水：' + Math.round(pi.baselineDailyRevenue).toLocaleString() + '元\n';
+    if (pi.priorityRatio) text += '  截留比例：' + pi.priorityRatio + '%\n';
+    if (pi.upsideMultiplier) text += '  上浮倍数：' + pi.upsideMultiplier + 'x\n';
+    if (pi.monitorFreq) text += '  监控频率：' + pi.monitorFreq + '\n';
+    if (pi.circuitBreaker) text += '  熔断条件：' + pi.circuitBreaker + '\n';
+  }
+
   text += '\n─── 评估报告 ───\n';
   text += '总结：' + ((r.report && r.report.oneLiner) || '') + '\n\n';
   text += '优势：\n';
   (r.report && r.report.strengths ? r.report.strengths : []).forEach(function(s) { text += '  ✓ ' + s + '\n'; });
   text += '\n风险：\n';
   (r.report && r.report.risks ? r.report.risks : []).forEach(function(s) { text += '  ! ' + s + '\n'; });
+
+  // 行动清单
+  if (r.actionItems && r.actionItems.length) {
+    text += '\n行动清单：\n';
+    r.actionItems.forEach(function(item) {
+      var prefix = item.priority === 'red' ? '🔴' : item.priority === 'yellow' ? '🟡' : '🟢';
+      text += '  ' + prefix + ' ' + item.text + '\n';
+    });
+  }
+
   text += '\n造局建议：\n  ' + ((r.report && r.report.actionPlan) || '') + '\n';
   text += '\n投资人话术：\n  "' + ((r.report && r.report.investorPitch) || '') + '"\n';
+
+  // 风控清单
+  if (r.riskView) {
+    text += '\n─── 风控清单 ───\n';
+    if (r.riskView.requiredDocs && r.riskView.requiredDocs.length) {
+      text += '需要补充的材料：\n';
+      r.riskView.requiredDocs.forEach(function(doc) { text += '  □ ' + doc + '\n'; });
+    }
+    if (r.riskView.mitigations && r.riskView.mitigations.length) {
+      text += '建议减缓条款：\n';
+      r.riskView.mitigations.forEach(function(m) { text += '  · ' + m.text + '\n'; });
+    }
+  }
+
   text += '\n═══════════════════════════════════\n';
   text += '  由 Flow Capital HSR 估值引擎生成\n';
   text += '═══════════════════════════════════\n';
@@ -1958,7 +2152,7 @@ function exportValuationReport() {
   a.download = 'HSR估值报告_' + (fd.name || '项目') + '_' + new Date().toISOString().slice(0,10) + '.txt';
   a.click();
   URL.revokeObjectURL(url);
-  showToast('✅ 报告已导出');
+  showToast('报告已导出');
 }
 
 console.log('Flow Capital 应用已加载');
