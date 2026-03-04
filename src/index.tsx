@@ -266,10 +266,25 @@ function localValuationEngine(d: any) {
   const pm = profitMargin * 100
 
   // ===== 维度打分 =====
-  // 盈利能力
-  let profitScore = Math.min(100, Math.max(10, pm * 2.5 + 20))
-  if (pm > 30) profitScore = Math.min(100, profitScore + 10)
-  if (pm < 5) profitScore = Math.max(10, profitScore - 20)
+  // 盈利能力 — 对极端亏损做精细分级
+  let profitScore: number
+  if (pm >= 30) {
+    profitScore = Math.min(100, 85 + (pm - 30) * 0.5)  // 30%+ → 85~100
+  } else if (pm >= 15) {
+    profitScore = 65 + (pm - 15) * 1.33  // 15~30% → 65~85
+  } else if (pm >= 5) {
+    profitScore = 40 + (pm - 5) * 2.5  // 5~15% → 40~65
+  } else if (pm >= 0) {
+    profitScore = 20 + pm * 4  // 0~5% → 20~40
+  } else if (pm >= -10) {
+    profitScore = 15  // 轻微亏损
+  } else if (pm >= -50) {
+    profitScore = 10  // 中度亏损
+  } else if (pm >= -100) {
+    profitScore = 6   // 严重亏损
+  } else {
+    profitScore = 3   // 极端亏损（如-566%）
+  }
 
   // 现金质量
   let cashScore = 70
@@ -324,20 +339,33 @@ function localValuationEngine(d: any) {
   // 评级
   const grade = totalScore >= 90 ? 'S' : totalScore >= 75 ? 'A' : totalScore >= 60 ? 'B' : totalScore >= 40 ? 'C' : 'D'
 
-  // 基因分型 — HSR六维综合态驱动
+  // 基因分型 — HSR六维综合态驱动（极端值优先判断）
   type ArchetypeInfo = { name: string; desc: string }
   let archetype: ArchetypeInfo
-  if (pm > 0.25 && cashScore > 80 && growthScore < 60) {
+
+  // 极端负面分型优先 —— 先排除"已经死了"的情况
+  if (pm < -100) {
+    archetype = { name: '失血型', desc: `成本是收入的${Math.abs(Math.round(pm / 100 + 1)) + 1}倍多——项目不是在赔钱，是在自杀式烧钱。要么立刻做截肢手术砍掉亏损源，要么准备写讣告` }
+  } else if (pm < -30) {
+    archetype = { name: '溺水型', desc: '营收远远覆盖不了成本——项目在水面下挣扎，再不注入资金或大幅砍成本，撑不了几个月' }
+  } else if (pm < 0) {
+    archetype = { name: '输血型', desc: '还在亏损期，靠外部资金维持——关键看亏损趋势：在收窄就有救，在扩大就得紧急止损' }
+  } else if (pm < 0.03 && annualRevenue > 500000) {
+    archetype = { name: '泡沫型', desc: '营收数字不低但利润率低得离谱——虚胖，一戳就瘪，增长越快可能亏越多' }
+  } else if (debtScore < 20) {
+    archetype = { name: '高杠杆型', desc: '资不抵债了——不是负债偏高的问题，是整个财务结构已经塌了，表面再光鲜底下全是窟窿' }
+  // 正常分型逻辑
+  } else if (pm > 25 && cashScore > 80 && growthScore < 60) {
     archetype = { name: '印钞型', desc: '利润厚现金流健康，闷声发大财的好买卖——不用讲故事光数钱就行' }
-  } else if (growthScore > 80 && pm < 0.1) {
+  } else if (growthScore > 80 && pm < 10) {
     archetype = { name: '烧钱型', desc: '增速猛但利润薄，典型的先做规模再谈盈利——看弹药够不够烧到终局' }
-  } else if (pm > 0.15 && growthScore > 65 && cashScore > 70) {
+  } else if (pm > 15 && growthScore > 65 && cashScore > 70) {
     archetype = { name: '激流型', desc: '快进快出高收益高风险，钱转得快赚得也快——得盯紧别翻车' }
-  } else if (scaleScore > 75 && pm > 0.15 && growthScore < 50) {
+  } else if (scaleScore > 75 && pm > 15 && growthScore < 50) {
     archetype = { name: '稳盘型', desc: '盘子大利润稳就是增长到顶了，守江山型选手——稳但没惊喜' }
-  } else if (growthScore > 70 && pm > 0.15) {
+  } else if (growthScore > 70 && pm > 15) {
     archetype = { name: '潜力型', desc: '利润和增速都不差，六边形战士——有上牌桌跟大佬掰手腕的硬实力' }
-  } else if (pm < 0.05) {
+  } else if (pm < 5) {
     archetype = { name: '泡沫型', desc: '营收数字不低但利润率低得离谱——虚胖，一戳就瘪' }
   } else if (debtScore < 40) {
     archetype = { name: '高杠杆型', desc: '表面光鲜底下全是借来的——杠杆拉太满，一个黑天鹅就翻车' }
@@ -358,34 +386,92 @@ function localValuationEngine(d: any) {
   const dailyFlowK = Math.round(dailyCashFlow / 1000 * 10) / 10
   const npW = Math.round(npWan)
 
-  // 维度点评（HSR物理概念 → 行业黑话翻译）
-  const profitVerdict = pm > 30 ? `利润率${pm.toFixed(0)}%，在${pe.label}赛道算闷声发财型——一年净赚${npW}万，同行看了眼红` :
-    pm > 15 ? `利润率${pm.toFixed(0)}%，${pe.label}赛道中等偏上水平，赚钱模型跑通了但还有提空间` :
-    pm > 5 ? `利润率${pm.toFixed(0)}%，能赚但利润偏薄——得看流水够不够大来撑估值` :
-    `利润率才${pm.toFixed(1)}%，基本在生死线上——不是不赚钱，是赚的都被成本吃了`
+  // 维度点评（HSR物理概念 → 行业黑话翻译）— 对极端值精细分级
+  let profitVerdict: string
+  if (pm > 30) {
+    profitVerdict = `利润率${pm.toFixed(0)}%，在${pe.label}赛道算闷声发财型——一年净赚${npW}万，同行看了眼红`
+  } else if (pm > 15) {
+    profitVerdict = `利润率${pm.toFixed(0)}%，${pe.label}赛道中等偏上水平，赚钱模型跑通了但还有提空间`
+  } else if (pm > 5) {
+    profitVerdict = `利润率${pm.toFixed(0)}%，能赚但利润偏薄——得看流水够不够大来撑估值`
+  } else if (pm > 0) {
+    profitVerdict = `利润率才${pm.toFixed(1)}%，勉强保本——风一吹就亏，赚的钱全被成本吃了`
+  } else if (pm > -10) {
+    profitVerdict = `利润率${pm.toFixed(1)}%，已经在亏钱了——每做一单都在往里倒贴，得赶紧止血`
+  } else if (pm > -50) {
+    profitVerdict = `利润率${pm.toFixed(0)}%，亏损严重——成本完全失控，做得越多亏得越多，不是缩减就是等死`
+  } else if (pm > -100) {
+    profitVerdict = `利润率${pm.toFixed(0)}%，重度失血——成本是收入的两倍以上，账上的钱在加速蒸发`
+  } else {
+    profitVerdict = `利润率${pm.toFixed(0)}%，彻底倒挂——成本是收入的${Math.abs(Math.round(pm / 100 + 1)) + 1}倍多，不是在生死线上，是已经在ICU了。再不动手术直接宣告死亡`
+  }
 
-  const cashVerdict = cashScore >= 85 ? `日流水${dailyFlowK}K，周转${turnoverDays || '—'}天，钱进来转一圈马上又出去赚钱——比很多A轮项目现金流都健康` :
-    cashScore >= 65 ? `日流水${dailyFlowK}K，现金流基本面OK，但要盯紧应收别让钱堵在路上` :
-    cashScore >= 45 ? `现金流一般般，钱转得不够快——建议砍账期或谈预付款，把血液循环搞起来` :
-    `现金流拉胯，钱转不动的话再大的营收也是纸面富贵——账面好看不顶用`
+  let cashVerdict: string
+  if (cashScore >= 85) {
+    cashVerdict = `日流水${dailyFlowK}K，周转${turnoverDays || '—'}天，钱进来转一圈马上又出去赚钱——比很多A轮项目现金流都健康`
+  } else if (cashScore >= 65) {
+    cashVerdict = `日流水${dailyFlowK}K，现金流基本面OK，但要盯紧应收别让钱堵在路上`
+  } else if (cashScore >= 45) {
+    cashVerdict = `现金流一般般，钱转得不够快——建议砍账期或谈预付款，把血液循环搞起来`
+  } else if (cashScore >= 25) {
+    cashVerdict = `现金流严重不畅，钱堵在路上出不来——账面营收再好看也是纸上富贵，得查应收和库存`
+  } else {
+    cashVerdict = `现金流几乎断裂，日常运转全靠输血——再不疏通马上就得停摆`
+  }
 
-  const growthVerdict = growthScore >= 85 ? `增速${growthRate ? (growthRate * 100).toFixed(0) + '%' : '强劲'}，在${pe.label}赛道是第一梯队——这个势头投资人最爱看` :
-    growthScore >= 65 ? `增长率${growthRate ? (growthRate * 100).toFixed(0) + '%' : '可观'}，不算爆发但稳中有进——给投资人讲增长故事够用` :
-    growthScore >= 45 ? `增速一般，原来那套打法跑到天花板了——得找新的增长引擎` :
-    `增长乏力，势头起不来——要么找新赛道要么找新打法，不然估值会一直被压着`
+  let growthVerdict: string
+  if (growthRate && growthRate < -0.2) {
+    growthVerdict = `营收在暴跌（${(growthRate * 100).toFixed(0)}%），不是增长乏力的问题——是市场在用脚投票，必须搞清楚是行业塌了还是自己出了问题`
+  } else if (growthRate && growthRate < 0) {
+    growthVerdict = `营收在萎缩（${(growthRate * 100).toFixed(0)}%），开始走下坡路了——不找到新增长引擎，估值只会越谈越低`
+  } else if (growthScore >= 85) {
+    growthVerdict = `增速${growthRate ? (growthRate * 100).toFixed(0) + '%' : '强劲'}，在${pe.label}赛道是第一梯队——这个势头投资人最爱看`
+  } else if (growthScore >= 65) {
+    growthVerdict = `增长率${growthRate ? (growthRate * 100).toFixed(0) + '%' : '可观'}，不算爆发但稳中有进——给投资人讲增长故事够用`
+  } else if (growthScore >= 45) {
+    growthVerdict = `增速一般，原来那套打法跑到天花板了——得找新的增长引擎`
+  } else {
+    growthVerdict = `增长乏力，势头起不来——要么找新赛道要么找新打法，不然估值会一直被压着`
+  }
 
-  const scaleVerdict = revWan >= 300 ? `年营收${revWan.toFixed(0)}万，在${pe.label}赛道过了生存线——盘子够大，有造局的底气` :
-    revWan >= 100 ? `年营收${revWan.toFixed(0)}万，规模还行但离行业头部还有段距离` :
-    `年营收${revWan.toFixed(0)}万，盘子偏小——先把规模跑起来再谈估值`
+  let scaleVerdict: string
+  if (revWan >= 300) {
+    scaleVerdict = `年营收${revWan.toFixed(0)}万，在${pe.label}赛道过了生存线——盘子够大，有造局的底气`
+  } else if (revWan >= 100) {
+    scaleVerdict = `年营收${revWan.toFixed(0)}万，规模还行但离行业头部还有段距离`
+  } else if (revWan >= 20) {
+    scaleVerdict = `年营收${revWan.toFixed(0)}万，盘子偏小——先把规模跑起来再谈估值`
+  } else if (revWan > 0) {
+    scaleVerdict = `年营收才${revWan.toFixed(1)}万，还是个体户体量——投资人看不上这个盘子，先活下来再说`
+  } else {
+    scaleVerdict = `基本没营收，项目还没跑出来——目前是纯投入期，没有数据能拿去谈估值`
+  }
 
-  const opVerdict = opScore >= 75 ? '运营效率高，钱花在刀刃上了——老板是个会算账的' :
-    opScore >= 55 ? '运营中规中矩，没大浪费但还有精益空间——可以再抠一抠' :
-    '运营效率偏低，要么人效不高要么在烧冤枉钱——得重新捋成本结构'
+  let opVerdict: string
+  if (pm < -50) {
+    opVerdict = '运营完全失控，投入产出严重倒挂——钱不是花在刀刃上，是在烧炉子取暖。得先活下来再谈效率'
+  } else if (opScore >= 75) {
+    opVerdict = '运营效率高，钱花在刀刃上了——老板是个会算账的'
+  } else if (opScore >= 55) {
+    opVerdict = '运营中规中矩，没大浪费但还有精益空间——可以再抠一抠'
+  } else if (opScore >= 35) {
+    opVerdict = '运营效率偏低，要么人效不高要么在烧冤枉钱——得重新捋成本结构'
+  } else {
+    opVerdict = '运营效率极差，成本结构有严重问题——每一块钱投进去大半都在空转'
+  }
 
-  const debtVerdict = debtScore >= 80 ? '负债率很低，轻装上阵——谈判桌上底气十足，不用看人脸色' :
-    debtScore >= 60 ? '负债水平可控，不影响正常经营和融资节奏' :
-    debtScore >= 40 ? '负债偏高，要注意留够安全垫——别让现金流断裂' :
-    '负债率太高，底下全是暗雷——一旦遇到黑天鹅就是连环爆'
+  let debtVerdict: string
+  if (debtScore >= 80) {
+    debtVerdict = '负债率很低，轻装上阵——谈判桌上底气十足，不用看人脸色'
+  } else if (debtScore >= 60) {
+    debtVerdict = '负债水平可控，不影响正常经营和融资节奏'
+  } else if (debtScore >= 40) {
+    debtVerdict = '负债偏高，要注意留够安全垫——别让现金流断裂'
+  } else if (debtScore >= 20) {
+    debtVerdict = '负债率太高，底下全是暗雷——一旦遇到黑天鹅就是连环爆'
+  } else {
+    debtVerdict = '资不抵债，已经技术性破产了——不是负债偏高的问题，是整个财务结构已经塌了'
+  }
 
   // 造局参数 — HSR引擎输出的交易结构建议
   const sugPE = `${pe.low}~${pe.high}倍PE，${pe.label}赛道这个利润水平给到这个倍数——投资人算得过来账，老板也不亏`
@@ -411,30 +497,76 @@ function localValuationEngine(d: any) {
     `月营收连续2个月下降超过${Math.round(growthRate * 80)}%触发回购条款` :
     `季度利润低于当前水平60%触发回购条款`
 
-  // 报告 — HSR翻译层输出
-  const oneLiner = `${name || '项目'}是个${pe.label}赛道的${archetype.name}，年利润${npW}万，${totalScore >= 70 ? '基本面扎实值得深入尽调' : totalScore >= 50 ? '有亮点但得重点盯风控' : '风险点不少建议审慎看'}`
+  // 报告 — HSR翻译层输出（区分盈亏场景）
+  let oneLiner: string
+  if (pm < -100) {
+    oneLiner = `${name || '项目'}是个${pe.label}赛道的${archetype.name}，年亏${Math.abs(npW)}万，成本严重倒挂——现在不是谈估值的时候，是紧急抢救的时候`
+  } else if (pm < 0) {
+    oneLiner = `${name || '项目'}是个${pe.label}赛道的${archetype.name}，目前在亏损（年亏${Math.abs(npW)}万），${totalScore >= 40 ? '但基本面有可救之处，关键看成本控制' : '风险点多需要大幅整改后再谈融资'}`
+  } else {
+    oneLiner = `${name || '项目'}是个${pe.label}赛道的${archetype.name}，年利润${npW}万，${totalScore >= 70 ? '基本面扎实值得深入尽调' : totalScore >= 50 ? '有亮点但得重点盯风控' : '风险点不少建议审慎看'}`
+  }
 
-  const strengths = [
-    pm > 0.15 ? `利润率${pm.toFixed(0)}%在${pe.label}赛道跑赢同行——盈利模型已经被市场验证过了` : `营收规模${revWan.toFixed(0)}万/年，买卖跑通了——有基本盘`,
-    cashScore >= 65 ? `日流水${dailyFlowK}K且周转快，是实打实的真金白银在转——不是纸面数据` : `有稳定的营收来源，商业逻辑成立——起码活得下去`,
-    growthScore >= 60 ? `增长势头还在，后续有放量空间——给投资人讲增长故事有素材` : `运营团队执行力不错，基本盘守得住——在${pe.label}赛道能站稳脚`
-  ]
+  const strengths = []
+  if (pm > 15) {
+    strengths.push(`利润率${pm.toFixed(0)}%在${pe.label}赛道跑赢同行——盈利模型已经被市场验证过了`)
+  } else if (pm > 0) {
+    strengths.push(`至少在赚钱（利润率${pm.toFixed(1)}%），商业模型跑通了——有基本盘`)
+  } else if (annualRevenue > 100000) {
+    strengths.push(`虽然在亏损，但有${revWan.toFixed(0)}万/年的营收规模——说明市场有需求，关键是成本控不住`)
+  } else {
+    strengths.push(`项目还在早期，核心是验证PMF——如果能快速降低获客成本或提高转化率，有翻盘可能`)
+  }
+  if (cashScore >= 65) {
+    strengths.push(`日流水${dailyFlowK}K且周转快，是实打实的真金白银在转——不是纸面数据`)
+  } else if (dailyCashFlow > 1000) {
+    strengths.push(`有稳定的现金流入（日流水${dailyFlowK}K），至少业务在运转`)
+  } else {
+    strengths.push('团队还在坚持——但需要尽快找到可持续的收入来源')
+  }
+  if (growthScore >= 60) {
+    strengths.push(`增长势头还在，后续有放量空间——给投资人讲增长故事有素材`)
+  } else {
+    strengths.push(`运营团队执行力不错，基本盘守得住——在${pe.label}赛道能站稳脚`)
+  }
 
-  const risks = [
-    pm < 0.1 ? '利润率偏低，成本结构需要动手术——规模越大可能亏得越多，别把规模当护身符' :
-      scaleScore < 40 ? '盘子偏小抗风险能力弱——一次意外就可能伤筋动骨' :
-      '行业竞争激烈，得持续筑壁垒——没有护城河的利润都是暂时的',
-    debtScore < 60 ? '负债率偏高，融资前建议先做一轮债务优化——投资人看到高负债会砍估值' :
-      '缺乏明显的竞争壁垒，护城河有待加深——同行抄起来太容易',
-    growthScore < 50 ? '增长见顶了，原有增长引擎跑不动了——不找到第二曲线估值会一直被压着' :
-      '行业政策变化、市场周期波动等系统性风险不可忽视——黑天鹅来了谁都跑不掉'
-  ]
+  const risks = []
+  if (pm < -100) {
+    risks.push(`成本完全失控（利润率${pm.toFixed(0)}%），继续运营等于加速死亡——这不是风险，是正在发生的灾难`)
+  } else if (pm < 0) {
+    risks.push(`项目在亏损（利润率${pm.toFixed(0)}%），每天都在烧钱——不解决成本问题，融到的钱也是填无底洞`)
+  } else if (pm < 10) {
+    risks.push('利润率偏低，成本结构需要动手术——规模越大可能亏得越多，别把规模当护身符')
+  } else if (scaleScore < 40) {
+    risks.push('盘子偏小抗风险能力弱——一次意外就可能伤筋动骨')
+  } else {
+    risks.push('行业竞争激烈，得持续筑壁垒——没有护城河的利润都是暂时的')
+  }
+  if (debtScore < 60) {
+    risks.push('负债率偏高，融资前建议先做一轮债务优化——投资人看到高负债会砍估值')
+  } else {
+    risks.push('缺乏明显的竞争壁垒，护城河有待加深——同行抄起来太容易')
+  }
+  if (growthScore < 50) {
+    risks.push('增长见顶了，原有增长引擎跑不动了——不找到第二曲线估值会一直被压着')
+  } else {
+    risks.push('行业政策变化、市场周期波动等系统性风险不可忽视——黑天鹅来了谁都跑不掉')
+  }
 
-  const actionPlan = totalScore >= 70 ?
-    `基本面硬，建议先花一个月把财务数据做漂亮（利润率和现金流的故事要讲圆），然后锁定3-5个战略投资人做定向路演。${pe.label}赛道投资人最看重的就是利润率和复购——这两点拎出来讲就对了。` :
-    `先别急着见投资人，花2-3个月把核心指标跑上去——利润率和运营效率优先。${pe.label}赛道现在资方谨慎，没有漂亮数据敲门会被拒。先修内功，再造势。`
+  let actionPlan: string
+  if (pm < -30) {
+    actionPlan = `现在唯一的任务就是止血。第一步：列出所有成本项，从大到小排序，砍掉最大的那个。第二步：只保留能产生正现金流的业务线。第三步：三个月后看利润率有没有往零走。没有转正的趋势之前，不要谈融资。`
+  } else if (pm < 0) {
+    actionPlan = `先扭亏再融资。花1-2个月专注做两件事：砍掉亏损业务线、重新谈供应商/房租等大额固定支出。${pe.label}赛道的投资人现在很理性，没有盈利趋势的项目根本过不了IC。`
+  } else if (totalScore >= 70) {
+    actionPlan = `基本面硬，建议先花一个月把财务数据做漂亮（利润率和现金流的故事要讲圆），然后锁定3-5个战略投资人做定向路演。${pe.label}赛道投资人最看重的就是利润率和复购——这两点拎出来讲就对了。`
+  } else {
+    actionPlan = `先别急着见投资人，花2-3个月把核心指标跑上去——利润率和运营效率优先。${pe.label}赛道现在资方谨慎，没有漂亮数据敲门会被拒。先修内功，再造势。`
+  }
 
-  const investorPitch = `这是一个${pe.label}赛道的${archetype.name}项目，年营收${revWan.toFixed(0)}万，净利润${npW}万，利润率${pm.toFixed(0)}%。${growthRate > 0.1 ? '过去一年增速' + (growthRate * 100).toFixed(0) + '%，' : ''}现金流健康日流水${dailyFlowK}K。我们这轮想按${neutralVal.toFixed(0)}万估值出让15-20%，主要用于${revWan > 200 ? '扩大规模和加强品牌建设' : '优化供应链和拓展新渠道'}。`
+  const investorPitch = pm < 0
+    ? `坦白说项目目前在亏损阶段（利润率${pm.toFixed(0)}%），但我们已经找到了扭亏路径：${annualRevenue > 500000 ? '营收规模' + revWan.toFixed(0) + '万/年说明市场认可度没问题，核心是优化成本结构' : '我们正在聚焦高毛利产品线，砍掉了不赚钱的业务'}。预计${growthRate > 0 ? Math.ceil(3 / growthRate) : 6}个月内利润率转正。这轮融资主要用于加速这个过程。`
+    : `这是一个${pe.label}赛道的${archetype.name}项目，年营收${revWan.toFixed(0)}万，净利润${npW}万，利润率${pm.toFixed(0)}%。${growthRate > 0.1 ? '过去一年增速' + (growthRate * 100).toFixed(0) + '%，' : ''}现金流健康日流水${dailyFlowK}K。我们这轮想按${neutralVal.toFixed(0)}万估值出让15-20%，主要用于${revWan > 200 ? '扩大规模和加强品牌建设' : '优化供应链和拓展新渠道'}。`
 
   return {
     score: totalScore,
@@ -494,9 +626,15 @@ function localValuationEngine(d: any) {
 // ==================== 老板视角翻译（一体千面核心：同一数据，场景化对话） ====================
 function buildOwnerView(d: any, s: any): any {
   const lines = []
-  // 核心指标 — 像坐下来跟老板聊天
+  // 核心指标 — 像坐下来跟老板聊天（区分盈亏）
   if (s.npWan > 0) {
     lines.push({ label: '你一年净赚', value: `${Math.round(s.npWan)}万`, note: `利润率${s.pm.toFixed(0)}%，在${s.pe.label}赛道${s.pm > 15 ? '算不错的' : '偏薄了'}`, sentiment: s.pm > 15 ? 'positive' : 'neutral' })
+  } else if (s.npWan > -10) {
+    lines.push({ label: '你一年净亏', value: `${Math.abs(Math.round(s.npWan))}万`, note: `利润率${s.pm.toFixed(1)}%，基本不赚不亏——得找到提利润的抓手`, sentiment: 'neutral' })
+  } else if (s.pm > -100) {
+    lines.push({ label: '你一年净亏', value: `${Math.abs(Math.round(s.npWan))}万`, note: `利润率${s.pm.toFixed(0)}%，成本严重超支——做得越多亏得越多`, sentiment: 'negative' })
+  } else {
+    lines.push({ label: '你一年净亏', value: `${Math.abs(Math.round(s.npWan))}万`, note: `利润率${s.pm.toFixed(0)}%，成本是收入的${Math.abs(Math.round(s.pm / 100 + 1)) + 1}倍以上，项目在疯狂失血`, sentiment: 'negative' })
   }
   if (d.dailyCashFlow > 0) {
     lines.push({ label: '每天进账', value: `${s.dailyFlowK}K`, note: `一个月下来大概${Math.round(d.dailyCashFlow * 30 / 10000)}万流水`, sentiment: 'positive' })
@@ -521,8 +659,15 @@ function buildOwnerView(d: any, s: any): any {
     lines.push({ label: '人均产出', value: `${perCap}万/人/年`, note: perCap > 50 ? '人效很高，团队精干能打' : perCap > 25 ? '人效中等，还有提升空间' : '人效偏低，可能人多了或者产出没跟上', sentiment: perCap > 50 ? 'positive' : perCap > 25 ? 'neutral' : 'negative' })
   }
 
-  // 你的项目值多少钱 — 场景化
-  const valSummary = `按${s.pe.label}赛道标准来看，你的项目大概值${Math.round(s.conservativeVal)}~${Math.round(s.optimisticVal)}万。中间价${Math.round(s.neutralVal)}万——这个数拿去跟投资人谈，有底气。`
+  // 你的项目值多少钱 — 场景化（亏损项目要特殊处理）
+  let valSummary: string
+  if (s.npWan < 0) {
+    valSummary = `说实话，项目目前在亏钱（年亏${Math.abs(Math.round(s.npWan))}万），按传统PE法估值很难给出正数。现在的核心任务不是谈估值，是先把利润率扭正——扭亏之后再来谈值多少钱，投资人才听得进去。`
+  } else if (s.neutralVal < 10) {
+    valSummary = `按${s.pe.label}赛道标准来看，项目估值偏低（保守${Math.round(s.conservativeVal)}万~乐观${Math.round(s.optimisticVal)}万）。先把规模和利润做上去，数字好看了才能上牌桌。`
+  } else {
+    valSummary = `按${s.pe.label}赛道标准来看，你的项目大概值${Math.round(s.conservativeVal)}~${Math.round(s.optimisticVal)}万。中间价${Math.round(s.neutralVal)}万——这个数拿去跟投资人谈，有底气。`
+  }
 
   // 你是什么类型
   const typeSummary = `你是个「${s.archetype.name}」—— ${s.archetype.desc}`
@@ -591,7 +736,25 @@ function buildAnomalies(d: any, pe: any): any[] {
     })
   }
   // 利润率异常低
-  if (d.profitMargin < 0.05 && d.annualRevenue > 500000) {
+  if (d.profitMargin < -1) {
+    anomalies.push({
+      field: '利润率',
+      value: `${(d.profitMargin * 100).toFixed(0)}%`,
+      benchmark: `${pe.label}赛道一般8~15%`,
+      deviation: `严重倒挂`,
+      severity: 'HIGH',
+      impact: `成本是收入的${Math.abs(Math.round(d.profitMargin)) + 1}倍以上——项目在加速失血，每运营一天都在扩大窟窿`
+    })
+  } else if (d.profitMargin < -0.1) {
+    anomalies.push({
+      field: '利润率',
+      value: `${(d.profitMargin * 100).toFixed(1)}%`,
+      benchmark: `${pe.label}赛道一般8~15%`,
+      deviation: `亏损`,
+      severity: 'HIGH',
+      impact: '收入覆盖不了成本——做得越多亏得越多，必须立刻查成本结构找出血点'
+    })
+  } else if (d.profitMargin < 0.05 && d.annualRevenue > 500000) {
     anomalies.push({
       field: '利润率',
       value: `${(d.profitMargin * 100).toFixed(1)}%`,
@@ -622,7 +785,13 @@ function buildActionItems(d: any, scores: any): any[] {
   if (d.refundRate > 0.08) {
     items.push({ priority: 'red', text: `退款率${(d.refundRate * 100).toFixed(0)}%太高，先压到5%以下——这一项改好就能直接提分` })
   }
-  if (scores.pm < 0.05) {
+  if (scores.pm < -100) {
+    items.push({ priority: 'red', text: `成本是收入的${Math.abs(Math.round(scores.pm / 100 + 1)) + 1}倍以上，项目在疯狂失血——必须立刻做减法：砍产品线、砍团队、砍一切不产生收入的支出` })
+  } else if (scores.pm < -30) {
+    items.push({ priority: 'red', text: '亏损严重，成本结构完全失控——先做一轮紧急成本审计，找到最大的出血点堵上' })
+  } else if (scores.pm < 0) {
+    items.push({ priority: 'red', text: '项目在亏钱，先别想融资——把扭亏当成唯一KPI，三个月内必须看到利润率转正的趋势' })
+  } else if (scores.pm < 5) {
     items.push({ priority: 'red', text: '利润率在生死线上，先砍掉不赚钱的业务线或重新谈供应商价格' })
   }
   if (d.debtRatio > 0.6) {
