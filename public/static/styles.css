@@ -263,3 +263,142 @@ input[type="range"]::-moz-range-thumb {
     font-size: 14px;
   }
 }
+
+/* ===== 重构筛选面板专用样式 ===== */
+
+/* AI 搜索框聚焦环 */
+.filter-ai-wrap:focus-within {
+  border-color: #1E40AF;
+  box-shadow: 0 0 0 3px rgba(30, 64, 175, 0.12);
+}
+
+/* 解析出的条件 Chip */
+.filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px 4px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  background: rgba(30, 64, 175, 0.08);
+  color: #1E40AF;
+  border: 1px solid rgba(30, 64, 175, 0.2);
+  transition: all 0.2s ease;
+}
+.filter-chip:hover {
+  background: rgba(30, 64, 175, 0.13);
+}
+.filter-chip .chip-remove {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: #1E40AF;
+  cursor: pointer;
+  font-size: 15px;
+  line-height: 1;
+  padding: 0;
+  transition: background 0.15s;
+}
+.filter-chip .chip-remove:hover {
+  background: rgba(30, 64, 175, 0.18);
+}
+
+/* Chip 出现高亮动画 */
+@keyframes chipHighlight {
+  0%   { box-shadow: 0 0 0 2px #1E40AF; }
+  100% { box-shadow: none; }
+}
+.filter-chip.highlight {
+  animation: chipHighlight 1.2s ease;
+}
+
+/* 新版筛选 Tag 按钮 */
+.filter-new-tag {
+  padding: 6px 14px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  border: 1.5px solid #E5E7EB;
+  background: #fff;
+  color: #374151;
+  cursor: pointer;
+  transition: border-color 0.2s, background 0.2s, color 0.2s, transform 0.15s, box-shadow 0.2s;
+}
+.filter-new-tag:hover {
+  border-color: #1E40AF;
+  color: #1E40AF;
+  transform: translateY(-1px);
+}
+.filter-new-tag.selected {
+  border-color: #1E40AF;
+  background: rgba(30, 64, 175, 0.08);
+  color: #1E40AF;
+  box-shadow: 0 2px 6px rgba(15, 37, 87, 0.12);
+}
+
+/* 滑块渐变背景（实时更新） */
+#filter-match {
+  height: 6px;
+  border-radius: 9999px;
+  -webkit-appearance: none;
+  appearance: none;
+  cursor: pointer;
+}
+#filter-match::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 22px;
+  height: 22px;
+  background: linear-gradient(135deg, #0F2557 0%, #1E40AF 100%);
+  border-radius: 50%;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(15, 37, 87, 0.35), 0 0 0 3px rgba(15, 37, 87, 0.1);
+  transition: box-shadow 0.2s;
+}
+#filter-match::-webkit-slider-thumb:hover {
+  box-shadow: 0 3px 10px rgba(15, 37, 87, 0.5), 0 0 0 5px rgba(15, 37, 87, 0.12);
+}
+#filter-match::-moz-range-thumb {
+  width: 22px;
+  height: 22px;
+  background: linear-gradient(135deg, #0F2557 0%, #1E40AF 100%);
+  border-radius: 50%;
+  border: none;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(15, 37, 87, 0.35);
+}
+
+/* 展开/收起图标旋转 */
+#filter-expand-icon.rotated {
+  transform: rotate(180deg);
+}
+
+/* 筛选面板内容展开动画 */
+#filter-all-panel {
+  transition: none;
+}
+#filter-all-panel.visible {
+  display: block;
+  animation: expandDown 0.25s cubic-bezier(0.22, 1, 0.36, 1);
+}
+@keyframes expandDown {
+  from { opacity: 0; transform: translateY(-6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* 重置确认弹窗显示 */
+#filter-reset-confirm.show {
+  display: flex;
+}
+
+/* 解析加载态 */
+#filter-ai-send.loading {
+  opacity: 0.65;
+  pointer-events: none;
+}
+

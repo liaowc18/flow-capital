@@ -6,16 +6,6 @@ let currentCard = 1;
 const totalCards = 7;
 let isFavorite = false;
 
-// 筛选状态
-let filterState = {
-  industry: [],
-  stage: [],
-  amount: [],
-  location: [],
-  match: 60,
-  sort: 'match'
-};
-
 // ==================== 项目数据 ====================
 const projectsData = [
   {
@@ -834,94 +824,172 @@ function renderToast() {
 
 function renderFilterPanel() {
   return `
-    <!-- 筛选面板 -->
+    <!-- 筛选遮罩层 -->
     <div id="filter-overlay" class="fixed inset-0 bg-black/50 z-40 hidden" onclick="closeFilter()"></div>
-    <div id="filter-panel" class="fixed bottom-0 left-0 right-0 bg-white rounded-t-3xl z-50 transform translate-y-full transition-transform duration-300 max-w-[428px] mx-auto" style="max-height: 85vh;">
-      
-      <!-- 面板头部 -->
-      <div class="flex items-center justify-between p-4 border-b border-gray-100">
-        <button class="text-gray-500 text-sm font-medium tap-effect" onclick="resetFilter()">重置</button>
-        <div class="flex items-center gap-2">
-          <i class="fas fa-filter text-primary"></i>
-          <span class="font-bold text-gray-800">筛选项目</span>
-        </div>
-        <button class="text-primary font-bold text-sm tap-effect" onclick="closeFilter()">完成</button>
+
+    <!-- 筛选面板（底部抽屉） -->
+    <div id="filter-panel" class="fixed bottom-0 left-0 right-0 bg-white rounded-t-3xl z-50 transform translate-y-full transition-transform duration-300 max-w-[428px] mx-auto flex flex-col" style="max-height: 92vh;">
+
+      <!-- 拖拽指示条 -->
+      <div class="flex justify-center pt-3 pb-1 flex-shrink-0">
+        <div class="w-10 h-1 bg-gray-200 rounded-full"></div>
       </div>
-      
-      <!-- 筛选内容 -->
-      <div class="overflow-auto p-4 space-y-6 no-scrollbar" style="max-height: calc(85vh - 140px);">
-        
-        ${renderFilterSection('industry', '🏢 行业领域', [
-          '医疗健康', '人工智能', '新能源', '新消费', '企业服务', 
-          '金融科技', '教育科技', '物联网', '硬科技'
-        ])}
-        
-        ${renderFilterSection('stage', '📊 融资阶段', [
-          '种子轮', '天使轮', 'Pre-A', 'A轮', 'B轮', 'C轮及以上'
-        ])}
-        
-        ${renderFilterSection('amount', '💰 融资金额', [
-          '500万以下', '500-2000万', '2000-5000万', '5000万-1亿', '1亿以上'
-        ])}
-        
-        ${renderFilterSection('location', '📍 项目地区', [
-          '北京', '上海', '深圳', '广州', '杭州', '成都', '其他城市'
-        ])}
-        
-        <!-- 匹配度滑块 -->
-        <div>
-          <h4 class="font-semibold text-gray-800 mb-3 flex items-center gap-2">
-            <span>🎯</span> 最低匹配度
-          </h4>
-          <div class="px-2">
-            <input type="range" id="filter-match" min="0" max="100" value="60" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer" oninput="updateMatchLabel(this.value); this.style.setProperty('--value', this.value + '%')" style="--value: 60%">
-            <div class="flex justify-between mt-2 text-sm">
-              <span class="text-gray-400">不限</span>
-              <span id="match-label" class="text-primary font-bold">60%</span>
-              <span class="text-gray-400">100%</span>
+
+      <!-- 面板头部 -->
+      <div class="flex items-center justify-between px-4 py-3 border-b border-gray-100 flex-shrink-0">
+        <button class="text-sm font-medium text-gray-500 tap-effect px-2 py-1 rounded-lg hover:bg-gray-100 transition-colors" onclick="confirmResetFilter()">重置</button>
+        <div class="flex items-center gap-2">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#0F2557" stroke-width="2"><path d="M3 4h18v2H3V4zm0 7h18v2H3v-2zm0 7h18v2H3v-2z"/><circle cx="5" cy="5" r="1.5" fill="#0F2557"/><circle cx="5" cy="12" r="1.5" fill="#0F2557"/><circle cx="5" cy="19" r="1.5" fill="#0F2557"/></svg>
+          <span class="font-bold text-gray-800 text-base">筛选项目</span>
+        </div>
+        <button class="text-sm font-semibold text-primary tap-effect px-2 py-1 rounded-lg hover:bg-blue-50 transition-colors" onclick="closeFilter()">完成</button>
+      </div>
+
+      <!-- 可滚动内容区 -->
+      <div class="flex-1 overflow-y-auto no-scrollbar">
+
+        <!-- ① AI 搜索框区域 -->
+        <div class="px-4 pt-4 pb-3 border-b border-gray-100">
+          <div class="flex items-center gap-2 mb-2">
+            <span class="text-xs text-gray-500 font-medium">用一句话描述你想找的项目</span>
+            <span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-bold bg-blue-50 text-primary tracking-wide">AI</span>
+          </div>
+          <div class="flex gap-2 items-stretch bg-white border-2 border-gray-200 rounded-xl p-1.5 transition-all focus-within:border-primary focus-within:shadow-[0_0_0_3px_rgba(37,99,235,0.12)]">
+            <input
+              type="text"
+              id="filter-ai-input"
+              placeholder="例如：医疗健康、A 轮、北京"
+              class="flex-1 min-w-0 px-3 py-2 bg-transparent text-sm text-gray-800 placeholder-gray-400 focus:outline-none"
+              autocomplete="off"
+            />
+            <div class="flex gap-1">
+              <button type="button" class="p-2 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors tap-effect" title="语音输入" onclick="showToast('🎤 语音输入开发中')">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 1 3 3v8a3 3 0 0 1-6 0V4a3 3 0 0 1 3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2M12 19v4M8 23h8"/></svg>
+              </button>
+              <button type="button" id="filter-ai-send" class="flex items-center gap-1.5 px-3 py-2 bg-gradient-finance text-white text-sm font-medium rounded-lg shadow-sm tap-effect transition-all" onclick="filterAiParse()">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/></svg>
+                <span class="hidden sm:inline">解析</span>
+              </button>
             </div>
           </div>
-        </div>
-        
-        <!-- 排序方式 -->
-        <div>
-          <h4 class="font-semibold text-gray-800 mb-3 flex items-center gap-2">
-            <span>📋</span> 排序方式
-          </h4>
-          <div class="flex flex-wrap gap-2" id="filter-sort">
-            ${renderSortButton('match', '匹配度优先', true)}
-            ${renderSortButton('latest', '最新发布')}
-            ${renderSortButton('hot', '热度最高')}
-            ${renderSortButton('amount-asc', '金额从低到高')}
-            ${renderSortButton('amount-desc', '金额从高到低')}
+          <!-- 示例问句 -->
+          <div class="flex flex-wrap gap-2 mt-2.5">
+            <span class="text-xs text-gray-400 self-center">示例：</span>
+            <button class="filter-example-chip px-3 py-1 rounded-full text-xs text-gray-500 bg-white border border-gray-200 tap-effect hover:border-primary hover:text-primary transition-colors" data-query="医疗健康 A 轮 北京">医疗健康 A 轮 北京</button>
+            <button class="filter-example-chip px-3 py-1 rounded-full text-xs text-gray-500 bg-white border border-gray-200 tap-effect hover:border-primary hover:text-primary transition-colors" data-query="新能源 5000万以上 深圳">新能源 5000万以上 深圳</button>
+            <button class="filter-example-chip px-3 py-1 rounded-full text-xs text-gray-500 bg-white border border-gray-200 tap-effect hover:border-primary hover:text-primary transition-colors" data-query="企业服务 Pre-A 上海">企业服务 Pre-A 上海</button>
           </div>
         </div>
-        
-      </div>
-      
-      <!-- 底部按钮 -->
-      <div class="p-4 border-t border-gray-100 bg-white">
-        <button class="w-full py-4 bg-gradient-finance text-white rounded-xl font-bold tap-effect flex items-center justify-center gap-2 shadow-finance" onclick="applyFilter()">
-          <i class="fas fa-check"></i>
-          应用筛选 <span id="filter-count" class="px-2 py-0.5 bg-white/20 rounded-full text-xs">0 个条件</span>
-        </button>
-      </div>
-    </div>
-  `;
-}
 
-function renderFilterSection(id, title, options) {
-  return `
-    <div>
-      <h4 class="font-semibold text-gray-800 mb-3 flex items-center gap-2">
-        ${title}
-      </h4>
-      <div class="flex flex-wrap gap-2" id="filter-${id}">
-        ${options.map(opt => `
-          <button class="filter-tag px-4 py-2 border-2 border-gray-200 rounded-full text-sm tap-effect font-medium" data-value="${opt}" onclick="toggleFilterTag(this)">
-            ${opt}
+        <!-- ② AI 解析出的条件 Chips -->
+        <div id="filter-parsed-section" class="px-4 py-3 border-b border-gray-100 min-h-[52px]">
+          <div id="filter-parsed-chips" class="flex flex-wrap gap-2"></div>
+          <p id="filter-parsed-empty" class="text-xs text-gray-400 py-1">输入描述或点击示例，AI 将解析为条件标签；也可手动选择下方选项。</p>
+          <p id="filter-parsed-zero" class="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 hidden">未识别到条件，换个说法试试？或手动展开选择。</p>
+        </div>
+
+        <!-- ③ 展开/收起全部筛选 -->
+        <div class="px-4 py-2 border-b border-gray-100">
+          <button id="filter-expand-btn" class="flex items-center gap-2 text-sm font-medium text-primary py-2 tap-effect rounded-lg hover:bg-blue-50 px-2 transition-colors w-full" onclick="toggleFilterExpand()">
+            <svg id="filter-expand-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="transition-transform duration-200"><path d="M6 9l6 6 6-6"/></svg>
+            展开全部筛选条件
           </button>
-        `).join('')}
+        </div>
+
+        <!-- ④ 全部筛选条件（可折叠） -->
+        <div id="filter-all-panel" class="hidden px-4 py-4 space-y-5">
+
+          <!-- 行业领域 -->
+          <div>
+            <div class="flex items-center gap-2 text-sm font-semibold text-gray-700 mb-2.5">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6B7280" stroke-width="2"><path d="M3 21h18M5 21V7l8-4v18M19 21V11l-6-4"/><path d="M9 9v.01M9 12v.01M9 15v.01M9 18v.01"/></svg>
+              行业领域
+            </div>
+            <div class="flex flex-wrap gap-2" id="filter-industry-tags"></div>
+          </div>
+
+          <!-- 融资阶段 -->
+          <div>
+            <div class="flex items-center gap-2 text-sm font-semibold text-gray-700 mb-2.5">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6B7280" stroke-width="2"><path d="M3 3v18h18"/><path d="M7 16v-5M12 16v-3M17 16V8"/></svg>
+              融资阶段
+            </div>
+            <div class="flex flex-wrap gap-2" id="filter-stage-tags"></div>
+          </div>
+
+          <!-- 融资金额 -->
+          <div>
+            <div class="flex items-center gap-2 text-sm font-semibold text-gray-700 mb-2.5">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6B7280" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+              融资金额
+            </div>
+            <div class="flex flex-wrap gap-2" id="filter-amount-tags"></div>
+          </div>
+
+          <!-- 项目地区 -->
+          <div>
+            <div class="flex items-center gap-2 text-sm font-semibold text-gray-700 mb-2.5">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6B7280" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+              项目地区
+            </div>
+            <div class="flex flex-wrap gap-2" id="filter-location-tags"></div>
+          </div>
+
+          <!-- 最低匹配度 -->
+          <div>
+            <div class="flex items-center gap-2 text-sm font-semibold text-gray-700 mb-2.5">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6B7280" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
+              最低匹配度
+            </div>
+            <div class="px-1">
+              <div class="flex justify-between text-xs text-gray-400 mb-2">
+                <span>不限</span>
+                <span id="filter-match-value" class="text-primary font-bold">60%</span>
+              </div>
+              <input type="range" id="filter-match" min="0" max="100" value="60"
+                class="w-full h-2 rounded-full appearance-none cursor-pointer"
+                style="background: linear-gradient(to right, #1E40AF 60%, #E5E7EB 60%)"
+                oninput="onFilterMatchInput(this)">
+            </div>
+          </div>
+
+          <!-- 排序方式 -->
+          <div>
+            <div class="flex items-center gap-2 text-sm font-semibold text-gray-700 mb-2.5">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6B7280" stroke-width="2"><path d="M3 6h18M7 12h10M11 18h2"/></svg>
+              排序方式
+            </div>
+            <div class="flex flex-wrap gap-2" id="filter-sort-tags">
+              ${renderSortButton('match', '匹配度优先', true)}
+              ${renderSortButton('latest', '最新发布')}
+              ${renderSortButton('hot', '热度最高')}
+              ${renderSortButton('amount-asc', '金额从低到高')}
+              ${renderSortButton('amount-desc', '金额从高到低')}
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- 底部固定操作栏 -->
+      <div class="flex-shrink-0 px-4 py-3 bg-white border-t border-gray-100 flex items-center gap-3">
+        <button class="flex-1 py-3.5 bg-gradient-finance text-white rounded-xl font-bold tap-effect flex items-center justify-center gap-2 shadow-finance transition-all" onclick="applyFilter()">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6L9 17l-5-5"/></svg>
+          应用筛选
+        </button>
+        <span id="filter-count" class="text-xs text-gray-400 whitespace-nowrap font-medium">未选条件</span>
+      </div>
+
+    </div>
+
+    <!-- 重置确认弹窗 -->
+    <div id="filter-reset-confirm" class="fixed inset-0 bg-black/40 z-[60] hidden items-center justify-center p-4" onclick="if(event.target===this) closeResetConfirm()">
+      <div class="bg-white rounded-2xl p-6 w-full max-w-[280px] shadow-xl">
+        <p class="text-sm text-gray-700 mb-5">确定清空所有筛选条件？</p>
+        <div class="flex gap-3 justify-end">
+          <button class="px-4 py-2 text-sm text-gray-600 border border-gray-200 rounded-lg tap-effect hover:bg-gray-50" onclick="closeResetConfirm()">取消</button>
+          <button class="px-4 py-2 text-sm text-white bg-gray-800 rounded-lg tap-effect hover:bg-gray-900" onclick="resetFilter()">清空</button>
+        </div>
       </div>
     </div>
   `;
@@ -1086,27 +1154,323 @@ function showToast(message) {
 }
 
 // ==================== 筛选功能 ====================
+
+// 筛选选项数据
+const FILTER_OPTIONS = {
+  industry: ['医疗健康', '人工智能', '新能源', '新消费', '企业服务', '金融科技', '教育科技', '物联网', '硬科技'],
+  stage:    ['种子轮', '天使轮', 'Pre-A', 'A轮', 'B轮', 'C轮及以上'],
+  amount:   ['500万以下', '500-2000万', '2000-5000万', '5000万-1亿', '1亿以上'],
+  location: ['北京', '上海', '深圳', '广州', '杭州', '成都', '其他城市']
+};
+
+// 筛选全局状态
+let filterState = {
+  chips: [],          // AI 解析/手动选出的 {type, label} 列表
+  industry: [],
+  stage: [],
+  amount: [],
+  location: [],
+  matchPercent: 60,
+  sort: 'match',
+  lastParseZero: false,
+  justParsed: false
+};
+
+// ---------- 开关面板 ----------
 function openFilter() {
   document.getElementById('filter-overlay').classList.remove('hidden');
-  document.getElementById('filter-panel').style.transform = 'translateY(0)';
+  const panel = document.getElementById('filter-panel');
+  panel.style.transform = 'translateY(0)';
   document.body.style.overflow = 'hidden';
+  // 渲染标签组
+  renderAllFilterTags();
+  renderFilterChips();
+  updateFilterCount();
 }
 
 function closeFilter() {
-  document.getElementById('filter-panel').style.transform = 'translateY(100%)';
+  const panel = document.getElementById('filter-panel');
+  panel.style.transform = 'translateY(100%)';
   setTimeout(() => {
     document.getElementById('filter-overlay').classList.add('hidden');
     document.body.style.overflow = '';
   }, 300);
 }
 
+// ---------- 展开/收起全部筛选 ----------
+function toggleFilterExpand() {
+  const allPanel = document.getElementById('filter-all-panel');
+  const icon = document.getElementById('filter-expand-icon');
+  const btn  = document.getElementById('filter-expand-btn');
+  const isOpen = !allPanel.classList.contains('hidden');
+  if (isOpen) {
+    allPanel.classList.add('hidden');
+    allPanel.classList.remove('visible');
+    icon.classList.remove('rotated');
+    btn.querySelector('span') && (btn.querySelectorAll('span')[0] || btn).textContent;
+    // 更新文字
+    btn.innerHTML = `
+      <svg id="filter-expand-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="transition-transform duration-200"><path d="M6 9l6 6 6-6"/></svg>
+      展开全部筛选条件
+    `;
+  } else {
+    allPanel.classList.remove('hidden');
+    allPanel.classList.add('visible');
+    btn.innerHTML = `
+      <svg id="filter-expand-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="transition-transform duration-200 rotated" style="transform:rotate(180deg)"><path d="M6 9l6 6 6-6"/></svg>
+      收起筛选条件
+    `;
+  }
+}
+
+// ---------- 渲染各组 Tag ----------
+function renderAllFilterTags() {
+  renderTagGroup('filter-industry-tags', 'industry');
+  renderTagGroup('filter-stage-tags',    'stage');
+  renderTagGroup('filter-amount-tags',   'amount');
+  renderTagGroup('filter-location-tags', 'location');
+  // 绑定示例问句点击
+  document.querySelectorAll('.filter-example-chip').forEach(btn => {
+    btn.onclick = () => {
+      const input = document.getElementById('filter-ai-input');
+      if (input) input.value = btn.dataset.query || '';
+      filterAiParse();
+    };
+  });
+  // 绑定 AI input 回车
+  const aiInput = document.getElementById('filter-ai-input');
+  if (aiInput && !aiInput.dataset.bound) {
+    aiInput.dataset.bound = '1';
+    aiInput.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); filterAiParse(); } });
+  }
+  // 渲染滑块
+  const slider = document.getElementById('filter-match');
+  if (slider) {
+    slider.value = filterState.matchPercent;
+    updateSliderBg(slider);
+  }
+  const matchVal = document.getElementById('filter-match-value');
+  if (matchVal) matchVal.textContent = filterState.matchPercent === 0 ? '不限' : filterState.matchPercent + '%';
+}
+
+function renderTagGroup(containerId, stateKey) {
+  const container = document.getElementById(containerId);
+  if (!container) return;
+  container.innerHTML = '';
+  FILTER_OPTIONS[stateKey].forEach(opt => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'filter-new-tag' + (filterState[stateKey].includes(opt) ? ' selected' : '');
+    btn.textContent = opt;
+    btn.onclick = () => {
+      const idx = filterState[stateKey].indexOf(opt);
+      if (idx === -1) filterState[stateKey].push(opt);
+      else filterState[stateKey].splice(idx, 1);
+      syncChipsFromManual();
+      renderTagGroup(containerId, stateKey);
+      renderFilterChips();
+      updateFilterCount();
+    };
+    container.appendChild(btn);
+  });
+}
+
+// ---------- 滑块实时更新 ----------
+function onFilterMatchInput(slider) {
+  filterState.matchPercent = parseInt(slider.value, 10);
+  const val = document.getElementById('filter-match-value');
+  if (val) val.textContent = filterState.matchPercent === 0 ? '不限' : filterState.matchPercent + '%';
+  updateSliderBg(slider);
+  syncChipsFromManual();
+  renderFilterChips();
+  updateFilterCount();
+}
+
+function updateSliderBg(slider) {
+  const pct = slider.value + '%';
+  slider.style.background = `linear-gradient(to right, #1E40AF ${pct}, #E5E7EB ${pct})`;
+}
+
+// ---------- AI 解析 ----------
+function filterAiParse() {
+  const input   = document.getElementById('filter-ai-input');
+  const sendBtn = document.getElementById('filter-ai-send');
+  const query   = (input && input.value) ? input.value.trim() : '';
+  if (!query) return;
+
+  if (sendBtn) { sendBtn.classList.add('loading'); sendBtn.disabled = true; }
+  if (input)   input.disabled = true;
+
+  // 模拟 AI 解析延迟
+  setTimeout(() => {
+    const chips = mockFilterParse(query);
+    filterState.chips = chips;
+    filterState.lastParseZero = chips.length === 0;
+    filterState.justParsed = chips.length > 0;
+    applyChipsToManual();
+    renderAllFilterTags();
+    renderFilterChips();
+    updateFilterCount();
+
+    if (sendBtn) { sendBtn.classList.remove('loading'); sendBtn.disabled = false; }
+    if (input)   input.disabled = false;
+
+    // 未识别到则自动展开手动选项
+    if (filterState.lastParseZero) {
+      const allPanel = document.getElementById('filter-all-panel');
+      if (allPanel && allPanel.classList.contains('hidden')) toggleFilterExpand();
+    }
+  }, 420);
+}
+
+// 模拟解析逻辑（实际对接 AI API）
+function mockFilterParse(query) {
+  const chips = [];
+  const text  = query.toLowerCase();
+  FILTER_OPTIONS.industry.forEach(v => { if (text.includes(v.toLowerCase())) chips.push({ type: 'industry', label: v }); });
+  FILTER_OPTIONS.stage.forEach(v   => { if (text.includes(v.toLowerCase())) chips.push({ type: 'stage', label: v }); });
+  FILTER_OPTIONS.amount.forEach(v  => { if (text.includes(v.replace(/\s/g, '').toLowerCase()) || (text.includes('5000') && text.includes('万'))) chips.push({ type: 'amount', label: v }); });
+  FILTER_OPTIONS.location.forEach(v => { if (text.includes(v)) chips.push({ type: 'location', label: v }); });
+  const matchReg = text.match(/(\d+)\s*%/);
+  if (matchReg) chips.push({ type: 'match', label: '最低匹配度 ' + matchReg[1] + '%' });
+  else if (chips.length) chips.push({ type: 'match', label: '最低匹配度 60%' });
+  return chips;
+}
+
+// ---------- Chips <-> 手动状态同步 ----------
+function syncChipsFromManual() {
+  const list = [];
+  filterState.industry.forEach(v  => list.push({ type: 'industry', label: v }));
+  filterState.stage.forEach(v     => list.push({ type: 'stage', label: v }));
+  filterState.amount.forEach(v    => list.push({ type: 'amount', label: v }));
+  filterState.location.forEach(v  => list.push({ type: 'location', label: v }));
+  if (filterState.matchPercent > 0) list.push({ type: 'match', label: '最低匹配度 ' + filterState.matchPercent + '%' });
+  filterState.chips = list;
+}
+
+function applyChipsToManual() {
+  filterState.industry  = filterState.chips.filter(c => c.type === 'industry').map(c => c.label);
+  filterState.stage     = filterState.chips.filter(c => c.type === 'stage').map(c => c.label);
+  filterState.amount    = filterState.chips.filter(c => c.type === 'amount').map(c => c.label);
+  filterState.location  = filterState.chips.filter(c => c.type === 'location').map(c => c.label);
+  const m = filterState.chips.find(c => c.type === 'match');
+  filterState.matchPercent = m ? parseInt(m.label.replace(/\D/g, ''), 10) : 0;
+}
+
+// ---------- 渲染 Chips ----------
+function renderFilterChips() {
+  const wrap      = document.getElementById('filter-parsed-chips');
+  const emptyEl   = document.getElementById('filter-parsed-empty');
+  const zeroEl    = document.getElementById('filter-parsed-zero');
+  if (!wrap) return;
+
+  wrap.innerHTML = '';
+
+  if (filterState.chips.length === 0) {
+    if (emptyEl) emptyEl.classList.remove('hidden');
+    if (zeroEl)  zeroEl.classList.toggle('hidden', !filterState.lastParseZero);
+    return;
+  }
+
+  if (emptyEl) emptyEl.classList.add('hidden');
+  if (zeroEl)  zeroEl.classList.add('hidden');
+
+  filterState.chips.forEach((c, i) => {
+    const chip = document.createElement('span');
+    chip.className = 'filter-chip' + (filterState.justParsed ? ' highlight' : '');
+    chip.innerHTML = `<span>${escapeHtml(c.label)}</span><button type="button" class="chip-remove" data-index="${i}">×</button>`;
+    wrap.appendChild(chip);
+  });
+
+  if (filterState.justParsed) {
+    filterState.justParsed = false;
+    setTimeout(() => wrap.querySelectorAll('.filter-chip.highlight').forEach(el => el.classList.remove('highlight')), 1200);
+  }
+
+  wrap.querySelectorAll('.chip-remove').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const idx = parseInt(btn.dataset.index, 10);
+      filterState.chips.splice(idx, 1);
+      applyChipsToManual();
+      renderAllFilterTags();
+      renderFilterChips();
+      updateFilterCount();
+    });
+  });
+}
+
+// ---------- 条件计数 ----------
+function updateFilterCount() {
+  const n  = filterState.chips.length;
+  const el = document.getElementById('filter-count');
+  if (el) el.textContent = n === 0 ? '未选条件' : '已选 ' + n + ' 个条件';
+
+  // 更新顶部筛选按钮徽章
+  const badge = document.getElementById('filter-badge');
+  if (badge) {
+    if (n > 0) {
+      badge.textContent = n;
+      badge.classList.remove('hidden');
+      badge.classList.add('flex');
+    } else {
+      badge.classList.add('hidden');
+      badge.classList.remove('flex');
+    }
+  }
+}
+
+// ---------- 重置 ----------
+function confirmResetFilter() {
+  const confirm = document.getElementById('filter-reset-confirm');
+  if (confirm) confirm.classList.add('show');
+}
+
+function closeResetConfirm() {
+  const confirm = document.getElementById('filter-reset-confirm');
+  if (confirm) confirm.classList.remove('show');
+}
+
+function resetFilter() {
+  filterState.chips = [];
+  filterState.industry = [];
+  filterState.stage = [];
+  filterState.amount = [];
+  filterState.location = [];
+  filterState.matchPercent = 0;
+  filterState.sort = 'match';
+  filterState.lastParseZero = false;
+
+  const input = document.getElementById('filter-ai-input');
+  if (input) input.value = '';
+  const slider = document.getElementById('filter-match');
+  if (slider) { slider.value = 0; updateSliderBg(slider); }
+  const matchVal = document.getElementById('filter-match-value');
+  if (matchVal) matchVal.textContent = '不限';
+
+  closeResetConfirm();
+  renderAllFilterTags();
+  renderFilterChips();
+  updateFilterCount();
+  showToast('已重置筛选条件');
+}
+
+// ---------- 应用筛选 ----------
+function applyFilter() {
+  const n = filterState.chips.length;
+  closeFilter();
+  showToast(n > 0 ? `✓ 已应用 ${n} 个筛选条件` : '✓ 显示所有项目');
+  resetCards();
+}
+
+// ---------- 旧函数兼容（排序按钮） ----------
 function toggleFilterTag(el) {
   el.classList.toggle('active');
   updateFilterCount();
 }
 
 function selectSortTag(el) {
-  const parent = el.parentElement;
+  const parent = el.closest('#filter-sort-tags');
+  if (!parent) return;
   parent.querySelectorAll('.filter-tag').forEach(tag => {
     tag.classList.remove('active', 'border-primary', 'bg-primary/10', 'text-primary');
     tag.classList.add('border-gray-200');
@@ -1117,120 +1481,15 @@ function selectSortTag(el) {
 }
 
 function updateMatchLabel(value) {
+  // 兼容旧版调用
   const label = document.getElementById('match-label');
-  if (value == 0) {
-    label.textContent = '不限';
-    label.classList.remove('text-primary');
-    label.classList.add('text-gray-500');
-  } else {
-    label.textContent = value + '%';
-    label.classList.remove('text-gray-500');
-    label.classList.add('text-primary');
-  }
-  filterState.match = parseInt(value);
-  updateFilterCount();
+  if (label) label.textContent = value == 0 ? '不限' : value + '%';
 }
 
-function updateFilterCount() {
-  let count = 0;
-  
-  // 计算多选标签数量
-  document.querySelectorAll('#filter-industry .filter-tag.active, #filter-stage .filter-tag.active, #filter-amount .filter-tag.active, #filter-location .filter-tag.active').forEach(() => count++);
-  
-  // 如果匹配度不是默认值
-  if (filterState.match !== 60) count++;
-  
-  // 如果排序不是默认值
-  if (filterState.sort !== 'match') count++;
-  
-  // 更新显示
-  document.getElementById('filter-count').textContent = count + ' 个条件';
-  
-  // 更新筛选按钮上的徽章
-  const badge = document.getElementById('filter-badge');
-  if (count > 0) {
-    badge.textContent = count;
-    badge.classList.remove('hidden');
-    badge.classList.add('flex');
-  } else {
-    badge.classList.add('hidden');
-    badge.classList.remove('flex');
-  }
-}
-
-function resetFilter() {
-  // 重置所有标签
-  document.querySelectorAll('.filter-tag.active').forEach(tag => {
-    tag.classList.remove('active', 'border-primary', 'bg-primary/10', 'text-primary');
-    tag.classList.add('border-gray-200');
-  });
-  
-  // 重新激活默认排序
-  const defaultSort = document.querySelector('#filter-sort .filter-tag[data-value="match"]');
-  if (defaultSort) {
-    defaultSort.classList.add('active', 'border-primary', 'bg-primary/10', 'text-primary');
-    defaultSort.classList.remove('border-gray-200');
-  }
-  
-  // 重置匹配度滑块
-  const slider = document.getElementById('filter-match');
-  slider.value = 60;
-  slider.style.setProperty('--value', '60%');
-  updateMatchLabel(60);
-  
-  // 重置状态
-  filterState = {
-    industry: [],
-    stage: [],
-    amount: [],
-    location: [],
-    match: 60,
-    sort: 'match'
-  };
-  
-  updateFilterCount();
-  showToast('已重置筛选条件');
-}
-
-function applyFilter() {
-  // 收集选中的筛选条件
-  filterState.industry = [];
-  filterState.stage = [];
-  filterState.amount = [];
-  filterState.location = [];
-  
-  document.querySelectorAll('#filter-industry .filter-tag.active').forEach(tag => {
-    filterState.industry.push(tag.dataset.value);
-  });
-  document.querySelectorAll('#filter-stage .filter-tag.active').forEach(tag => {
-    filterState.stage.push(tag.dataset.value);
-  });
-  document.querySelectorAll('#filter-amount .filter-tag.active').forEach(tag => {
-    filterState.amount.push(tag.dataset.value);
-  });
-  document.querySelectorAll('#filter-location .filter-tag.active').forEach(tag => {
-    filterState.location.push(tag.dataset.value);
-  });
-  
-  // 构建筛选描述
-  let description = [];
-  if (filterState.industry.length) description.push(filterState.industry.join('、'));
-  if (filterState.stage.length) description.push(filterState.stage.join('、'));
-  if (filterState.amount.length) description.push(filterState.amount.join('、'));
-  if (filterState.location.length) description.push(filterState.location.join('、'));
-  if (filterState.match > 0) description.push('≥' + filterState.match + '%匹配');
-  
-  closeFilter();
-  
-  // 显示筛选结果
-  if (description.length > 0) {
-    showToast('✓ 已筛选: ' + description.slice(0, 2).join(' + ') + (description.length > 2 ? '...' : ''));
-  } else {
-    showToast('✓ 显示所有项目');
-  }
-  
-  // 重置卡片并应用筛选
-  resetCards();
+function escapeHtml(s) {
+  const div = document.createElement('div');
+  div.textContent = s;
+  return div.innerHTML;
 }
 
 console.log('Flow Capital 应用已加载');
