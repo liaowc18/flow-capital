@@ -404,14 +404,14 @@ input[type="range"]::-moz-range-thumb {
 
 /* ===== 估值计算器专用样式 ===== */
 
-/* 暗色输入框 */
+/* 输入框 — 统一浅色金融风格 */
 .val-input {
   width: 100%;
   padding: 10px 12px;
   border-radius: 10px;
-  border: 1.5px solid rgba(255,255,255,0.1);
-  background: rgba(255,255,255,0.04);
-  color: #fff;
+  border: 1.5px solid #E5E7EB;
+  background: #fff;
+  color: #1f2937;
   font-size: 13px;
   outline: none;
   transition: border-color 0.2s, box-shadow 0.2s;
@@ -419,23 +419,23 @@ input[type="range"]::-moz-range-thumb {
   appearance: none;
 }
 .val-input::placeholder {
-  color: rgba(255,255,255,0.25);
+  color: #9ca3af;
 }
 .val-input:focus {
-  border-color: #059669;
-  box-shadow: 0 0 0 3px rgba(5,150,105,0.15);
+  border-color: #1E40AF;
+  box-shadow: 0 0 0 3px rgba(30,64,175,0.12);
 }
 .val-input option {
-  background: #111816;
-  color: #fff;
+  background: #fff;
+  color: #1f2937;
 }
 
-/* 加载动画 spinner */
+/* 加载动画 spinner — 统一主色 */
 .val-loading-spinner {
   width: 40px;
   height: 40px;
-  border: 3px solid rgba(255,255,255,0.1);
-  border-top-color: #059669;
+  border: 3px solid #e5e7eb;
+  border-top-color: #1E40AF;
   border-radius: 50%;
   animation: valSpin 0.8s linear infinite;
 }
