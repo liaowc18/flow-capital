@@ -1528,7 +1528,7 @@ function renderValuationPage() {
           <div class="flex items-center gap-2">
             <span class="text-lg">🔬</span>
             <span class="text-sm font-semibold gradient-text">HSR 估值引擎</span>
-            <span class="text-xs text-gray-400">P＝M×V 基态分类 · 定价参数建议</span>
+            <span class="text-xs text-gray-400">六维体检 · 基因分型 · 造局定价</span>
           </div>
         </div>
 
@@ -1540,7 +1540,7 @@ function renderValuationPage() {
               <i class="fas fa-edit text-primary"></i>
               企业数据输入
             </h2>
-            <p class="text-xs text-gray-400 mb-4">至少填写收入+成本（或日流水+日成本），更多字段 = 更准确的评估</p>
+            <p class="text-xs text-gray-400 mb-4">至少填一组收入+成本，字段填得越多，AI 分析师给的诊断越精准</p>
 
             <!-- 基础信息 -->
             <div class="grid grid-cols-2 gap-3 mb-4">
@@ -1642,7 +1642,7 @@ function renderValuationPage() {
             <!-- 提交按钮 — 与主站按钮风格一致 -->
             <button id="val-submit-btn" class="w-full py-3.5 bg-gradient-finance text-white rounded-xl font-bold text-sm tap-effect shadow-finance flex items-center justify-center gap-2" onclick="submitValuation()">
               <i class="fas fa-calculator"></i>
-              <span>开始估值分析</span>
+              <span>启动六维体检</span>
             </button>
           </div>
         </div>
@@ -1651,8 +1651,8 @@ function renderValuationPage() {
         <div id="val-loading" class="px-4 mt-2 hidden">
           <div class="bg-white rounded-2xl shadow-finance border border-gray-100 p-8 text-center">
             <div class="val-loading-spinner mx-auto mb-4"></div>
-            <p class="text-gray-800 font-semibold text-sm mb-1">AI 数学分析师正在诊断...</p>
-            <p class="text-gray-400 text-xs" id="val-loading-text">正在计算盈利能力指标</p>
+            <p class="text-gray-800 font-semibold text-sm mb-1">AI 数学分析师正在做六维体检...</p>
+            <p class="text-gray-400 text-xs" id="val-loading-text">引擎启动 · 扫描盈利模型</p>
           </div>
         </div>
 
@@ -1702,13 +1702,13 @@ function submitValuation() {
 
   // 加载文案轮播
   const loadingTexts = [
-    '正在计算盈利能力指标...',
-    '正在分析现金流质量...',
-    '正在评估增长趋势...',
-    '正在对标行业数据...',
-    '正在生成估值区间...',
-    '正在撰写分析报告...',
-    'AI 分析师正在翻译行业术语...'
+    '引擎启动 · 扫描盈利模型...',
+    '六维体检 · 诊断现金流质量...',
+    '行业对标 · 校准赛道基准线...',
+    '基因分型 · 识别项目DNA...',
+    '估值定价 · 计算三档区间...',
+    '造局推演 · 输出交易参数...',
+    'AI 分析师正在翻译诊断报告...'
   ];
   let textIdx = 0;
   const loadingTimer = setInterval(function() {
@@ -1836,9 +1836,9 @@ function renderValuationResult(r) {
       '<p class="text-gray-400 text-xs">' + escapeHtml((r.valuation && r.valuation.method) || '') + ' · 置信度 ' + ((r.valuation && r.valuation.confidence) || 0) + '%</p>' +
     '</div>' +
 
-    // 多维透视
+    // 六维体检
     '<div class="mx-4 mt-3 bg-white rounded-2xl shadow-finance border border-gray-100 p-5">' +
-      '<div class="flex items-center gap-2 mb-4"><i class="fas fa-chart-bar text-primary"></i><span class="text-gray-800 font-bold text-sm">多维透视</span></div>' +
+      '<div class="flex items-center gap-2 mb-4"><i class="fas fa-chart-bar text-primary"></i><span class="text-gray-800 font-bold text-sm">六维体检</span></div>' +
       '<div class="space-y-1 mb-4">' + dimBarsHtml + '</div>' +
       '<div class="flex flex-wrap gap-2 pt-3 border-t border-gray-100">' + dimTagsHtml + '</div>' +
     '</div>' +
@@ -1917,17 +1917,17 @@ function exportValuationReport() {
   var fd = valuationState.formData;
 
   var text = '═══════════════════════════════════\n';
-  text += '  HSR 资产健康度评估报告\n';
+  text += '  HSR 六维体检 · 估值评估报告\n';
   text += '═══════════════════════════════════\n\n';
-  text += '📋 项目：' + (fd.name || '未命名') + ' | 行业：' + (fd.industry || '未指定') + '\n';
+  text += '📋 项目：' + (fd.name || '未命名') + ' | 赛道：' + (fd.industry || '未指定') + '\n';
   text += '📅 评估时间：' + new Date().toLocaleDateString('zh-CN') + '\n\n';
   text += '─── 综合评分 ───\n';
   text += '评分：' + r.score + '/100 (' + r.grade + '级)\n';
-  text += '基因型：' + r.archetype + ' — ' + r.archetypeDesc + '\n\n';
+  text += '项目DNA：' + r.archetype + ' — ' + r.archetypeDesc + '\n\n';
   text += '─── 估值区间 ───\n';
   text += '保守：' + formatWan(r.valuation && r.valuation.conservative) + ' | 中性：' + formatWan(r.valuation && r.valuation.neutral) + ' | 乐观：' + formatWan(r.valuation && r.valuation.optimistic) + '\n';
   text += '方法：' + ((r.valuation && r.valuation.method) || '') + ' | 置信度：' + ((r.valuation && r.valuation.confidence) || 0) + '%\n\n';
-  text += '─── 多维透视 ───\n';
+  text += '─── 六维体检 ───\n';
   var dims = r.dimensions || {};
   var dimLabels = { profitability: '盈利能力', cashQuality: '现金质量', growthTrend: '增长趋势', scaleVolume: '规模体量', operationEfficiency: '运营效率', debtRisk: '借债风险' };
   Object.keys(dimLabels).forEach(function(k) {
