@@ -1062,32 +1062,6 @@ function renderProfilePage() {
           </div>
         </div>
 
-        <!-- 我的项目摘要 -->
-        <div class="p-4 bg-white border-b border-gray-100 tap-effect" onclick="showPage('my-projects')">
-          <div class="flex items-center justify-between mb-3">
-            <h3 class="font-bold text-gray-800 text-sm flex items-center gap-2">
-              <i class="fas fa-folder-open text-primary"></i>我的项目
-            </h3>
-            <div class="flex items-center gap-1 text-xs text-primary font-medium">
-              查看全部 <i class="fas fa-chevron-right text-xs"></i>
-            </div>
-          </div>
-          <div class="grid grid-cols-3 gap-2">
-            <div class="p-3 bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl text-center">
-              <p class="text-lg font-bold text-primary">2</p>
-              <p class="text-xs text-gray-500">进行中</p>
-            </div>
-            <div class="p-3 bg-gradient-to-br from-green-50 to-green-100 rounded-xl text-center">
-              <p class="text-lg font-bold text-success">1</p>
-              <p class="text-xs text-gray-500">已完成</p>
-            </div>
-            <div class="p-3 bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl text-center">
-              <p class="text-lg font-bold text-gray-400">1</p>
-              <p class="text-xs text-gray-500">草稿</p>
-            </div>
-          </div>
-        </div>
-        
         <div class="p-4 space-y-3">
           <p class="text-xs text-gray-400 font-medium mb-2">设置与帮助</p>
           ${renderSettingItem('gear', '偏好设置', '⚙️ 偏好设置开发中')}
