@@ -174,6 +174,8 @@ const projectsData = [
 // ==================== 初始化应用 ====================
 document.addEventListener('DOMContentLoaded', function() {
   renderApp();
+  // 造局工作台初始计算
+  setTimeout(function() { updateDealLab(); }, 100);
 });
 
 // ==================== 页面渲染 ====================
@@ -182,9 +184,9 @@ function renderApp() {
   app.innerHTML = `
     ${renderHomePage()}
     ${renderDetailPage()}
-    ${renderMessagesPage()}
+    ${renderDealLabPage()}
+    ${renderRadarPage()}
     ${renderProfilePage()}
-    ${renderMyProjectsPage()}
     ${renderPublishPage()}
     ${renderValuationPage()}
     ${renderToast()}
@@ -211,14 +213,14 @@ function renderHomePage() {
         
         <!-- 筛选和通知 -->
         <div class="flex items-center gap-2">
-          <button class="p-2 text-gray-500 hover:text-primary relative tap-effect" onclick="showPage('valuation')" title="项目估值计算器">
-            <i class="fas fa-calculator text-lg"></i>
+          <button class="p-2 text-gray-500 hover:text-primary relative tap-effect" onclick="showPage('deal-lab')" title="造局工作台">
+            <i class="fas fa-dice text-lg"></i>
           </button>
           <button id="filter-btn" class="p-2 text-gray-500 hover:text-primary relative tap-effect" onclick="openFilter()">
             <i class="fas fa-filter text-lg"></i>
             <span id="filter-badge" class="absolute -top-0.5 -right-0.5 w-5 h-5 bg-primary text-white text-xs rounded-full items-center justify-center hidden badge-pulse">0</span>
           </button>
-          <button class="p-2 text-gray-500 hover:text-primary relative tap-effect" onclick="showPage('messages')">
+          <button class="p-2 text-gray-500 hover:text-primary relative tap-effect" onclick="showPage('radar')">
             <i class="fas fa-bell text-lg"></i>
             <span class="absolute top-1 right-1 w-2.5 h-2.5 bg-error rounded-full badge-pulse"></span>
           </button>
@@ -471,64 +473,498 @@ function renderProjectDetail(project) {
   `;
 }
 
-function renderMessagesPage() {
+// ==================== 🎰 造局工作台（独立Tab） ====================
+
+// 造局默认参数
+const dealLabDefaults = {
+  industry: '餐饮',
+  dailyFlow: 8500,
+  profitMargin: 22,
+  wolfCapital: 20,
+  seniorCapital: 80,
+  seniorReturn: 12,
+  wolfShare: 92,
+  dailyRetain: 15,
+  circuitBreaker: 40
+};
+
+// 行业基准数据
+const industryBenchmarks = {
+  '餐饮':     { dailyFlow: 8500, pm: 22, pe: '5-12',  turnover: 3,  desc: '现金流好，利润率中等' },
+  '零售':     { dailyFlow: 12000, pm: 15, pe: '6-15', turnover: 15, desc: '流水大，利润率偏薄' },
+  '教育':     { dailyFlow: 5000, pm: 35, pe: '8-18',  turnover: 5,  desc: '利润率高，季节性强' },
+  '医疗健康': { dailyFlow: 6000, pm: 28, pe: '12-25', turnover: 10, desc: '毛利高，合规成本大' },
+  '美容美发': { dailyFlow: 7000, pm: 40, pe: '4-10',  turnover: 2,  desc: '利润率最高，周转快' },
+  '物流':     { dailyFlow: 15000, pm: 8,  pe: '6-13', turnover: 7,  desc: '重资产，利润率低' },
+  '制造业':   { dailyFlow: 20000, pm: 12, pe: '5-12', turnover: 30, desc: '规模大，周转慢' },
+  '科技/SaaS':{ dailyFlow: 3000, pm: 45, pe: '15-40', turnover: 20, desc: '高毛利，前期烧钱' },
+  '新消费':   { dailyFlow: 9000, pm: 18, pe: '8-22',  turnover: 8,  desc: '增长快，竞争激烈' },
+  '新能源':   { dailyFlow: 25000, pm: 10, pe: '10-30', turnover: 25, desc: '重投入，长周期回报' },
+  '服务业':   { dailyFlow: 6000, pm: 25, pe: '5-12',  turnover: 5,  desc: '轻资产，人效为王' }
+};
+
+function renderDealLabPage() {
   return `
-    <!-- 消息页 -->
-    <div id="page-messages" class="page h-screen">
-      <header class="glass-effect px-4 py-3 border-b border-gray-100 sticky top-0 z-10">
-        <h1 class="font-bold text-gray-800 text-lg">消息中心</h1>
-      </header>
-      
-      <div class="flex-1 overflow-auto no-scrollbar">
-        <div class="p-4 border-b border-gray-100 flex items-center gap-3 tap-effect card-hover">
-          <div class="w-14 h-14 bg-gradient-to-br from-primary/10 to-secondary/10 rounded-2xl flex items-center justify-center shadow-sm">
-            <i class="fas fa-bullhorn text-primary text-xl"></i>
-          </div>
-          <div class="flex-1">
-            <div class="flex items-center justify-between mb-1">
-              <h4 class="font-semibold text-gray-800">系统通知</h4>
-              <span class="text-xs text-gray-400">刚刚</span>
-            </div>
-            <p class="text-sm text-gray-500 truncate">您关注的项目"智慧医疗AI"有新动态</p>
-          </div>
-          <span class="w-2.5 h-2.5 bg-error rounded-full badge-pulse"></span>
+    <div id="page-deal-lab" class="page h-screen bg-gray-50">
+      <!-- 顶部栏 -->
+      <header class="glass-effect px-4 py-3 flex items-center justify-between border-b border-gray-100 sticky top-0 z-10">
+        <div class="flex items-center gap-2">
+          <span class="text-xl">🎰</span>
+          <span class="font-semibold text-gray-800">造局工作台</span>
         </div>
-        
-        <div class="p-4 border-b border-gray-100 flex items-center gap-3 tap-effect card-hover">
-          <div class="w-14 h-14 bg-gradient-to-br from-success/10 to-success/20 rounded-2xl flex items-center justify-center shadow-sm">
-            <i class="fas fa-comment-dots text-success text-xl"></i>
-          </div>
-          <div class="flex-1">
-            <div class="flex items-center justify-between mb-1">
-              <h4 class="font-semibold text-gray-800">智慧医疗 AI · 创始人</h4>
-              <span class="text-xs text-gray-400">2小时前</span>
-            </div>
-            <p class="text-sm text-gray-500 truncate">感谢您的关注，期待与您进一步交流</p>
+        <div class="flex items-center gap-2">
+          <button class="px-3 py-1.5 text-xs font-medium text-primary bg-primary/5 border border-primary/20 rounded-full tap-effect" onclick="showPage('valuation')">
+            <i class="fas fa-stethoscope mr-1"></i>用真实数据校准
+          </button>
+        </div>
+      </header>
+
+      <div class="flex-1 overflow-auto no-scrollbar pb-24">
+
+        <!-- 引导提示 -->
+        <div class="px-4 py-3 bg-gradient-to-r from-amber-50 via-orange-50 to-yellow-50">
+          <div class="flex items-center gap-2">
+            <span class="text-lg">⚡</span>
+            <span class="text-sm font-semibold text-amber-800">零门槛开始</span>
+            <span class="text-xs text-amber-600">拖动滑块，秒算收益 — 不需要填表</span>
           </div>
         </div>
 
-        <div class="p-4 border-b border-gray-100 flex items-center gap-3 tap-effect card-hover">
-          <div class="w-14 h-14 bg-gradient-to-br from-accent/10 to-warning/10 rounded-2xl flex items-center justify-center shadow-sm">
-            <i class="fas fa-star text-accent text-xl"></i>
+        <!-- 行业快选 -->
+        <div class="px-4 pt-4 pb-2">
+          <div class="flex items-center gap-2 mb-3">
+            <i class="fas fa-industry text-primary text-sm"></i>
+            <span class="text-xs font-semibold text-gray-700">选一个行业（自动填入基准数据）</span>
           </div>
-          <div class="flex-1">
-            <div class="flex items-center justify-between mb-1">
-              <h4 class="font-semibold text-gray-800">新项目推荐</h4>
-              <span class="text-xs text-gray-400">昨天</span>
-            </div>
-            <p class="text-sm text-gray-500 truncate">3个新项目符合您的投资偏好</p>
+          <div class="flex flex-wrap gap-2" id="dl-industry-tags">
+            ${Object.keys(industryBenchmarks).map((ind, i) => `
+              <button class="dl-ind-tag px-3 py-1.5 rounded-full text-xs font-medium border-2 tap-effect transition-all ${i === 0 ? 'border-primary bg-primary/10 text-primary' : 'border-gray-200 text-gray-500 hover:border-primary/50'}" onclick="selectDealLabIndustry('${ind}', this)">
+                ${ind}
+              </button>
+            `).join('')}
           </div>
         </div>
+
+        <!-- 基准数据条 -->
+        <div class="mx-4 mt-2 p-3 rounded-xl bg-white border border-gray-100 shadow-sm" id="dl-benchmark-bar">
+          <div class="grid grid-cols-4 gap-2 text-center">
+            <div>
+              <p class="text-xs text-gray-400">日均流水</p>
+              <p class="text-sm font-bold text-gray-800" id="dl-bench-flow">${(dealLabDefaults.dailyFlow / 1000).toFixed(1)}K</p>
+            </div>
+            <div>
+              <p class="text-xs text-gray-400">利润率</p>
+              <p class="text-sm font-bold text-gray-800" id="dl-bench-pm">${dealLabDefaults.profitMargin}%</p>
+            </div>
+            <div>
+              <p class="text-xs text-gray-400">PE 参考</p>
+              <p class="text-sm font-bold text-gray-800" id="dl-bench-pe">5-12</p>
+            </div>
+            <div>
+              <p class="text-xs text-gray-400">周转天数</p>
+              <p class="text-sm font-bold text-gray-800" id="dl-bench-turn">3天</p>
+            </div>
+          </div>
+          <p class="text-xs text-gray-400 mt-2 text-center" id="dl-bench-desc">现金流好，利润率中等</p>
+        </div>
+
+        <!-- 流水/利润率微调 -->
+        <div class="mx-4 mt-3 bg-white rounded-2xl shadow-finance border border-gray-100 p-4">
+          <div class="flex items-center gap-2 mb-3">
+            <i class="fas fa-chart-bar text-primary text-sm"></i>
+            <span class="text-xs font-semibold text-gray-700">项目基本面（可微调）</span>
+          </div>
+          ${renderDlSlider('dl-daily-flow', '预估日均流水', dealLabDefaults.dailyFlow, 1000, 50000, '元', 500)}
+          ${renderDlSlider('dl-pm', '预估利润率', dealLabDefaults.profitMargin, 1, 60, '%', 1)}
+        </div>
+
+        <!-- 赌局设计器 -->
+        <div class="mx-4 mt-3 bg-white rounded-2xl shadow-finance border border-gray-100 overflow-hidden">
+          <div class="p-4 bg-gradient-to-r from-amber-500 to-orange-500 border-b">
+            <div class="flex items-center gap-2"><span class="text-lg">🎰</span><span class="text-white font-bold text-sm">设计你的赌局</span></div>
+            <p class="text-amber-100 text-xs mt-1">6 根杠杆，拖出你的交易结构</p>
+          </div>
+          <div class="p-4 space-y-4" id="dl-sliders-body">
+            ${renderDlSlider('dl-wolf', '我出多少（劣后）', dealLabDefaults.wolfCapital, 5, 200, '万', 5)}
+            ${renderDlSlider('dl-senior', '拉多少优先资金', dealLabDefaults.seniorCapital, 0, 500, '万', 10)}
+            ${renderDlSlider('dl-senior-ret', '优先方保底年化', dealLabDefaults.seniorReturn, 6, 24, '%', 1)}
+            ${renderDlSlider('dl-wolf-share', '超额利润我分', dealLabDefaults.wolfShare, 50, 98, '%', 1)}
+            ${renderDlSlider('dl-retain', '日流水截留', dealLabDefaults.dailyRetain, 5, 40, '%', 1)}
+            ${renderDlSlider('dl-circuit', '月营收跌多少熔断', dealLabDefaults.circuitBreaker, 20, 60, '%', 5)}
+          </div>
+        </div>
+
+        <!-- 实时计算结果 -->
+        <div class="mx-4 mt-3" id="dl-calc-result">
+        </div>
+
+        <!-- T+0 分账模拟表 -->
+        <div id="dl-settlement-table" class="mx-4 mt-3 hidden"></div>
+
+        <!-- 操作栏 -->
+        <div class="mx-4 mt-3 mb-6 flex gap-2">
+          <button class="flex-1 py-3 rounded-xl font-semibold text-sm tap-effect flex items-center justify-center gap-2 bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-gold" onclick="exportDealLabPlan()">
+            <i class="fas fa-scroll text-xs"></i> 导出方案
+          </button>
+          <button class="flex-1 py-3 rounded-xl font-semibold text-sm tap-effect flex items-center justify-center gap-2 bg-white border border-primary/30 text-primary shadow-sm" onclick="showPage('valuation')">
+            <i class="fas fa-stethoscope text-xs"></i> 用真数据校准 →
+          </button>
+        </div>
+
       </div>
-      
-      ${renderBottomNav('messages')}
+
+      ${renderBottomNav('deal-lab')}
     </div>
   `;
 }
 
+function renderDlSlider(id, label, defaultVal, min, max, unit, step) {
+  return '<div class="mb-1">' +
+    '<div class="flex justify-between items-center mb-1.5">' +
+      '<span class="text-xs font-semibold text-gray-600">' + label + '</span>' +
+      '<span class="text-xs font-bold text-primary" id="' + id + '-val">' + defaultVal + unit + '</span>' +
+    '</div>' +
+    '<input type="range" id="' + id + '" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-primary" ' +
+      'min="' + min + '" max="' + max + '" value="' + defaultVal + '" step="' + step + '" ' +
+      'oninput="document.getElementById(\'' + id + '-val\').textContent=this.value+\'' + unit + '\'; updateDealLab()">' +
+  '</div>';
+}
+
+function selectDealLabIndustry(industry, el) {
+  // 更新标签高亮
+  document.querySelectorAll('.dl-ind-tag').forEach(t => {
+    t.classList.remove('border-primary', 'bg-primary/10', 'text-primary');
+    t.classList.add('border-gray-200', 'text-gray-500');
+  });
+  if (el) {
+    el.classList.add('border-primary', 'bg-primary/10', 'text-primary');
+    el.classList.remove('border-gray-200', 'text-gray-500');
+  }
+
+  var bench = industryBenchmarks[industry] || industryBenchmarks['餐饮'];
+  // 更新基准数据显示
+  var flowEl = document.getElementById('dl-bench-flow');
+  var pmEl = document.getElementById('dl-bench-pm');
+  var peEl = document.getElementById('dl-bench-pe');
+  var turnEl = document.getElementById('dl-bench-turn');
+  var descEl = document.getElementById('dl-bench-desc');
+  if (flowEl) flowEl.textContent = (bench.dailyFlow / 1000).toFixed(1) + 'K';
+  if (pmEl) pmEl.textContent = bench.pm + '%';
+  if (peEl) peEl.textContent = bench.pe;
+  if (turnEl) turnEl.textContent = bench.turnover + '天';
+  if (descEl) descEl.textContent = bench.desc;
+
+  // 更新滑块值
+  var flowSlider = document.getElementById('dl-daily-flow');
+  var pmSlider = document.getElementById('dl-pm');
+  if (flowSlider) {
+    flowSlider.value = bench.dailyFlow;
+    document.getElementById('dl-daily-flow-val').textContent = bench.dailyFlow + '元';
+  }
+  if (pmSlider) {
+    pmSlider.value = bench.pm;
+    document.getElementById('dl-pm-val').textContent = bench.pm + '%';
+  }
+
+  // 根据利润率调整推荐参数
+  var wolfSlider = document.getElementById('dl-wolf');
+  var seniorSlider = document.getElementById('dl-senior');
+  var retainSlider = document.getElementById('dl-retain');
+  var shareSlider = document.getElementById('dl-wolf-share');
+
+  var sugRetain = bench.pm > 20 ? 15 : bench.pm > 10 ? 20 : 25;
+  var sugShare = bench.pm > 20 ? 92 : bench.pm > 15 ? 88 : bench.pm > 8 ? 82 : 70;
+
+  if (retainSlider) {
+    retainSlider.value = sugRetain;
+    document.getElementById('dl-retain-val').textContent = sugRetain + '%';
+  }
+  if (shareSlider) {
+    shareSlider.value = sugShare;
+    document.getElementById('dl-wolf-share-val').textContent = sugShare + '%';
+  }
+
+  updateDealLab();
+}
+
+function updateDealLab() {
+  var el = document.getElementById('dl-calc-result');
+  if (el) el.innerHTML = calcDealLab();
+  // 同时更新分账表
+  updateDlSettlement();
+}
+
+function calcDealLab() {
+  var wolf = parseFloat((document.getElementById('dl-wolf') || {}).value) || 20;
+  var senior = parseFloat((document.getElementById('dl-senior') || {}).value) || 80;
+  var seniorRet = parseFloat((document.getElementById('dl-senior-ret') || {}).value) || 12;
+  var wolfShare = parseFloat((document.getElementById('dl-wolf-share') || {}).value) || 92;
+  var retain = parseFloat((document.getElementById('dl-retain') || {}).value) || 15;
+  var circuit = parseFloat((document.getElementById('dl-circuit') || {}).value) || 40;
+  var baseDaily = parseFloat((document.getElementById('dl-daily-flow') || {}).value) || 8500;
+  var pm = parseFloat((document.getElementById('dl-pm') || {}).value) || 22;
+
+  var total = wolf + senior;
+  var leverage = wolf > 0 ? (total / wolf).toFixed(1) : '∞';
+  var safety = total > 0 ? Math.round(senior / total * 100) : 0;
+
+  var scenarios = [
+    { label: '保守', factor: 0.7, color: 'text-gray-600', bg: 'bg-gray-50' },
+    { label: '中性', factor: 1.0, color: 'text-primary', bg: 'bg-primary/5' },
+    { label: '乐观', factor: 1.3, color: 'text-success', bg: 'bg-emerald-50' }
+  ];
+
+  var scenarioCards = scenarios.map(function(s) {
+    var adjDaily = baseDaily * s.factor;
+    var monthRetain = adjDaily * (retain / 100) * 30;
+    var seniorTotal = senior * 10000 * (1 + seniorRet / 100);
+    var monthsToPay = monthRetain > 0 ? Math.ceil(seniorTotal / monthRetain) : 99;
+    var paybackDays = Math.min(monthsToPay * 30, 999);
+    var remainMonths = Math.max(0, 12 - monthsToPay);
+    var monthlyProfit = adjDaily * (pm / 100) * 30 / 10000;
+    var wolfProfit = monthlyProfit * remainMonths * (wolfShare / 100);
+    var irr = wolf > 0 ? Math.round(wolfProfit / wolf * 100) : 0;
+
+    return '<div class="rounded-xl p-3 text-center ' + s.bg + ' border border-gray-100">' +
+      '<p class="text-xs text-gray-400 mb-1 font-medium">' + s.label + '</p>' +
+      '<p class="text-lg font-black ' + s.color + '">' + irr + '%</p>' +
+      '<p class="text-xs text-gray-500">IRR</p>' +
+      '<p class="text-xs font-bold text-gray-700 mt-1">' + paybackDays + '天</p>' +
+      '<p class="text-xs text-gray-400">回本</p>' +
+    '</div>';
+  }).join('');
+
+  // 极端风险
+  var extremeDaily = baseDaily * 0.5;
+  var extremeRetain = extremeDaily * (retain / 100) * 30;
+  var extremeSenior = senior * 10000 * (1 + seniorRet / 100);
+  var extremeMonths = extremeRetain > 0 ? Math.ceil(extremeSenior / extremeRetain) : 99;
+
+  // 狼视角判断
+  var dailyFlowK = (baseDaily / 1000).toFixed(1);
+  var verdictText = '';
+  var verdictBg = '';
+  if (pm <= 0) {
+    verdictText = '别碰——项目在亏钱（利润率' + pm + '%），做杠杆等于加速死亡';
+    verdictBg = 'from-red-50 to-orange-50 border-red-200';
+  } else if (pm < 8) {
+    verdictText = '鸡肋盘——利润率' + pm + '%太薄，杠杆空间极小';
+    verdictBg = 'from-amber-50 to-yellow-50 border-amber-200';
+  } else if (pm < 15) {
+    verdictText = '能做但别贪——利润率' + pm + '%，控制好截留比例别断项目的血';
+    verdictBg = 'from-blue-50 to-indigo-50 border-blue-200';
+  } else if (pm < 25) {
+    verdictText = '好盘口——利润率' + pm + '%日流水' + dailyFlowK + 'K，用1:' + Math.round(senior/Math.max(1,wolf)) + '杠杆值得做';
+    verdictBg = 'from-emerald-50 to-green-50 border-emerald-200';
+  } else {
+    verdictText = '肥肉——利润率' + pm + '%日流水' + dailyFlowK + 'K，这种盘口不多见，赶紧锁';
+    verdictBg = 'from-emerald-50 to-green-50 border-emerald-200';
+  }
+
+  return '<div class="bg-white rounded-2xl shadow-finance border border-gray-100 overflow-hidden">' +
+    // 狼视角判断
+    '<div class="p-4 bg-gradient-to-r from-gray-900 to-gray-800">' +
+      '<div class="flex items-center gap-2"><span class="text-lg">🐺</span><span class="text-white font-bold text-sm">狼视角判断</span></div>' +
+    '</div>' +
+    '<div class="p-4 space-y-3">' +
+      '<div class="p-3 rounded-xl bg-gradient-to-r ' + verdictBg + ' border">' +
+        '<p class="text-gray-800 text-xs leading-relaxed font-medium">' + escapeHtml(verdictText) + '</p>' +
+      '</div>' +
+      // 核心指标
+      '<div class="grid grid-cols-3 gap-2">' +
+        '<div class="text-center p-2.5 rounded-xl bg-gray-900 text-white">' +
+          '<p class="text-xs text-gray-400 mb-0.5">总盘口</p>' +
+          '<p class="text-sm font-bold">' + total + '万</p>' +
+        '</div>' +
+        '<div class="text-center p-2.5 rounded-xl bg-gray-900 text-white">' +
+          '<p class="text-xs text-gray-400 mb-0.5">杠杆</p>' +
+          '<p class="text-sm font-bold">' + leverage + 'x</p>' +
+        '</div>' +
+        '<div class="text-center p-2.5 rounded-xl bg-gray-900 text-white">' +
+          '<p class="text-xs text-gray-400 mb-0.5">安全垫</p>' +
+          '<p class="text-sm font-bold">' + safety + '%</p>' +
+        '</div>' +
+      '</div>' +
+      // 三档场景
+      '<div class="grid grid-cols-3 gap-2">' + scenarioCards + '</div>' +
+      // 风险提示
+      '<div class="p-2.5 rounded-xl bg-red-50 border border-red-100 flex items-start gap-2">' +
+        '<i class="fas fa-exclamation-triangle text-error text-xs mt-0.5 flex-shrink-0"></i>' +
+        '<p class="text-xs text-gray-600">极端风险：若月流水跌50%，回本延至 <strong class="text-error">' + (extremeMonths * 30) + '天</strong>' +
+        (extremeMonths > 12 ? ' <span class="text-error font-bold">（超过1年，存在本金损失风险）</span>' : '') + '</p>' +
+      '</div>' +
+      // 分账规则
+      '<div class="p-2.5 rounded-xl bg-gray-50 border border-gray-100">' +
+        '<p class="text-xs text-gray-500 leading-relaxed">' +
+          '<strong>分账规则：</strong>阶段一（还本期）日流水×' + retain + '%截留 → 优先还本付息；' +
+          '阶段二（分利期）超额利润 <strong class="text-primary">' + wolfShare + '%</strong> 归操盘方，' + (100 - wolfShare) + '% 归优先方。' +
+          '熔断线：月营收连续2月下降超' + circuit + '%触发回购。' +
+        '</p>' +
+      '</div>' +
+      // 展开分账表按钮
+      '<button class="w-full py-2.5 rounded-xl text-xs font-semibold text-primary bg-primary/5 border border-primary/20 tap-effect flex items-center justify-center gap-1.5" onclick="toggleDlSettlement()">' +
+        '<i class="fas fa-table"></i> 查看逐月分账模拟表' +
+      '</button>' +
+    '</div>' +
+  '</div>';
+}
+
+function toggleDlSettlement() {
+  var el = document.getElementById('dl-settlement-table');
+  if (!el) return;
+  if (el.classList.contains('hidden')) {
+    el.classList.remove('hidden');
+    updateDlSettlement();
+    el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  } else {
+    el.classList.add('hidden');
+  }
+}
+
+function updateDlSettlement() {
+  var el = document.getElementById('dl-settlement-table');
+  if (!el || el.classList.contains('hidden')) return;
+
+  var wolf = parseFloat((document.getElementById('dl-wolf') || {}).value) || 20;
+  var senior = parseFloat((document.getElementById('dl-senior') || {}).value) || 80;
+  var seniorRet = parseFloat((document.getElementById('dl-senior-ret') || {}).value) || 12;
+  var wolfShare = parseFloat((document.getElementById('dl-wolf-share') || {}).value) || 92;
+  var retain = parseFloat((document.getElementById('dl-retain') || {}).value) || 15;
+  var baseDaily = parseFloat((document.getElementById('dl-daily-flow') || {}).value) || 8500;
+  var pm = parseFloat((document.getElementById('dl-pm') || {}).value) || 22;
+
+  var seniorRemain = senior * 10000 * (1 + seniorRet / 100);
+  var wolfTotal = 0;
+  var paybackMonth = 0;
+  var rows = '';
+
+  for (var m = 1; m <= 12; m++) {
+    var jitter = 0.95 + Math.sin(m * 1.7) * 0.05;
+    var dailyFlow = Math.round(baseDaily * jitter);
+    var monthRetain = Math.round(dailyFlow * (retain / 100) * 30);
+    var monthProfit = Math.round(dailyFlow * (pm / 100) * 30);
+    var excess = 0, wolfGet = 0;
+    var highlight = '';
+
+    if (seniorRemain > 0) {
+      var toPay = Math.min(monthRetain, seniorRemain);
+      seniorRemain -= toPay;
+      if (seniorRemain <= 0 && paybackMonth === 0) {
+        paybackMonth = m;
+        highlight = ' class="bg-emerald-50 font-semibold"';
+      }
+    } else {
+      excess = Math.max(0, monthProfit);
+      wolfGet = Math.round(excess * wolfShare / 100);
+      wolfTotal += wolfGet;
+    }
+
+    rows += '<tr' + highlight + '>' +
+      '<td class="px-2 py-1.5 text-center">' + m + '</td>' +
+      '<td class="px-2 py-1.5 text-right">' + (dailyFlow / 1000).toFixed(1) + 'K</td>' +
+      '<td class="px-2 py-1.5 text-right">' + (monthRetain / 10000).toFixed(2) + '万</td>' +
+      '<td class="px-2 py-1.5 text-right">' + (seniorRemain > 0 ? (seniorRemain / 10000).toFixed(1) + '万' : '<span class="text-success">已清</span>') + '</td>' +
+      '<td class="px-2 py-1.5 text-right">' + (excess > 0 ? (excess / 10000).toFixed(2) + '万' : '—') + '</td>' +
+      '<td class="px-2 py-1.5 text-right font-bold ' + (wolfGet > 0 ? 'text-success' : '') + '">' + (wolfGet > 0 ? (wolfGet / 10000).toFixed(2) + '万' : '—') + '</td>' +
+    '</tr>';
+  }
+
+  var wolfIRR = wolf > 0 ? Math.round(wolfTotal / 10000 / wolf * 100) : 0;
+
+  el.innerHTML = '<div class="bg-white rounded-2xl shadow-finance border border-gray-100 overflow-hidden">' +
+    '<div class="p-4 bg-gradient-to-r from-gray-800 to-gray-700">' +
+      '<div class="flex items-center gap-2"><span class="text-lg">💸</span><span class="text-white font-bold text-sm">T+0 分账模拟（逐月）</span></div>' +
+    '</div>' +
+    '<div class="overflow-x-auto">' +
+      '<table class="w-full text-xs">' +
+        '<thead><tr class="bg-gray-50 text-gray-500">' +
+          '<th class="px-2 py-2 text-center font-semibold">月</th>' +
+          '<th class="px-2 py-2 text-right font-semibold">日均流水</th>' +
+          '<th class="px-2 py-2 text-right font-semibold">月截留</th>' +
+          '<th class="px-2 py-2 text-right font-semibold">优先剩余</th>' +
+          '<th class="px-2 py-2 text-right font-semibold">超额利润</th>' +
+          '<th class="px-2 py-2 text-right font-semibold">🐺 狼分得</th>' +
+        '</tr></thead>' +
+        '<tbody class="divide-y divide-gray-50">' + rows + '</tbody>' +
+      '</table>' +
+    '</div>' +
+    '<div class="p-4 bg-gray-50 border-t border-gray-100">' +
+      '<div class="grid grid-cols-3 gap-3 text-center">' +
+        '<div><p class="text-xs text-gray-400">狼投入</p><p class="text-sm font-bold text-gray-800">' + wolf + '万</p></div>' +
+        '<div><p class="text-xs text-gray-400">12月净赚</p><p class="text-sm font-bold text-success">' + (wolfTotal / 10000).toFixed(1) + '万</p></div>' +
+        '<div><p class="text-xs text-gray-400">年化IRR</p><p class="text-sm font-bold ' + (wolfIRR > 30 ? 'text-success' : 'text-gray-800') + '">' + wolfIRR + '%</p></div>' +
+      '</div>' +
+      (paybackMonth > 0 ? '<p class="text-xs text-gray-500 text-center mt-2"><i class="fas fa-check-circle text-success mr-1"></i>第 ' + paybackMonth + ' 个月优先方本息回收完毕，之后超额利润 ' + wolfShare + '% 归狼</p>' :
+        '<p class="text-xs text-error text-center mt-2"><i class="fas fa-exclamation-circle mr-1"></i>12个月内优先方本息未回收完毕，需延长周期或调整参数</p>') +
+    '</div>' +
+  '</div>';
+}
+
+function exportDealLabPlan() {
+  var wolf = parseFloat((document.getElementById('dl-wolf') || {}).value) || 20;
+  var senior = parseFloat((document.getElementById('dl-senior') || {}).value) || 80;
+  var seniorRet = parseFloat((document.getElementById('dl-senior-ret') || {}).value) || 12;
+  var wolfSharePct = parseFloat((document.getElementById('dl-wolf-share') || {}).value) || 92;
+  var retainPct = parseFloat((document.getElementById('dl-retain') || {}).value) || 15;
+  var circuitPct = parseFloat((document.getElementById('dl-circuit') || {}).value) || 40;
+  var baseDaily = parseFloat((document.getElementById('dl-daily-flow') || {}).value) || 8500;
+  var pm = parseFloat((document.getElementById('dl-pm') || {}).value) || 22;
+  var total = wolf + senior;
+  var leverage = wolf > 0 ? (total / wolf).toFixed(1) : '∞';
+  var safety = total > 0 ? Math.round(senior / total * 100) : 0;
+
+  // 获取当前选中行业
+  var selectedInd = '未指定';
+  document.querySelectorAll('.dl-ind-tag').forEach(function(t) {
+    if (t.classList.contains('border-primary')) selectedInd = t.textContent.trim();
+  });
+
+  var text = '═══════════════════════════════════════\n';
+  text += '  Flow Capital 联营方案书（造局工作台）\n';
+  text += '═══════════════════════════════════════\n\n';
+  text += '行业：' + selectedInd + ' | 日均流水：' + (baseDaily/1000).toFixed(1) + 'K | 利润率：' + pm + '%\n';
+  text += '生成时间：' + new Date().toLocaleDateString('zh-CN') + '\n\n';
+
+  text += '─── 交易结构设计 ───\n';
+  text += '总盘口：' + total + '万\n';
+  text += '├── 劣后资金（操盘方）：' + wolf + '万（' + Math.round(wolf / total * 100) + '%）\n';
+  text += '└── 优先资金（资方）：' + senior + '万（' + Math.round(senior / total * 100) + '%）\n';
+  text += '杠杆倍数：' + leverage + 'x\n\n';
+
+  text += '优先方条件：\n';
+  text += '├── 保底年化：' + seniorRet + '%\n';
+  text += '└── 日流水截留还款：' + retainPct + '%\n\n';
+
+  text += '超额利润分配：\n';
+  text += '├── 操盘方（劣后）：' + wolfSharePct + '%\n';
+  text += '└── 资方（优先）：' + (100 - wolfSharePct) + '%\n\n';
+
+  text += '─── 风控条件 ───\n';
+  text += '熔断线：月营收连续2个月下降超过' + circuitPct + '%触发回购\n';
+  text += '安全垫：' + safety + '%\n\n';
+
+  text += '─── 分账规则 ───\n';
+  text += '阶段一（还本期）：日流水 × ' + retainPct + '% 截留 → 优先还本付息\n';
+  text += '阶段二（分利期）：超额利润 ' + wolfSharePct + '% 归操盘方，' + (100 - wolfSharePct) + '% 归优先方\n';
+  text += '结算方式：T+0 自动清算\n\n';
+
+  text += '═══════════════════════════════════════\n';
+  text += '  由 Flow Capital 造局工作台生成\n';
+  text += '═══════════════════════════════════════\n';
+
+  var blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = '联营方案_' + selectedInd + '_' + new Date().toISOString().slice(0,10) + '.txt';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  showToast('✅ 联营方案已导出');
+}
+
 function renderProfilePage() {
   return `
-    <!-- 我的页面 -->
+    <!-- 我的页面（整合消息、项目管理） -->
     <div id="page-profile" class="page h-screen">
       <header class="bg-gradient-finance p-6 text-white">
         <div class="flex items-center gap-4 mb-4">
@@ -556,14 +992,14 @@ function renderProfilePage() {
         </div>
       </header>
       
-      <div class="flex-1 overflow-auto no-scrollbar">
+      <div class="flex-1 overflow-auto no-scrollbar pb-24">
         <!-- 快捷功能区 -->
         <div class="p-4 grid grid-cols-4 gap-4 bg-white border-b border-gray-100">
-          <button class="flex flex-col items-center gap-2 tap-effect" onclick="showPage('my-projects')">
+          <button class="flex flex-col items-center gap-2 tap-effect" onclick="showPage('publish')">
             <div class="w-14 h-14 bg-gradient-to-br from-primary/10 to-primary/20 rounded-2xl flex items-center justify-center shadow-sm">
-              <i class="fas fa-folder-open text-primary text-xl"></i>
+              <i class="fas fa-plus-circle text-primary text-xl"></i>
             </div>
-            <span class="text-xs text-gray-600 font-medium">我的项目</span>
+            <span class="text-xs text-gray-600 font-medium">发布项目</span>
           </button>
           <button class="flex flex-col items-center gap-2 tap-effect" onclick="showToast('📊 投资记录开发中')">
             <div class="w-14 h-14 bg-gradient-to-br from-success/10 to-success/20 rounded-2xl flex items-center justify-center shadow-sm">
@@ -577,12 +1013,92 @@ function renderProfilePage() {
             </div>
             <span class="text-xs text-gray-600 font-medium">我的收藏</span>
           </button>
-          <button class="flex flex-col items-center gap-2 tap-effect" onclick="showToast('📈 数据中心开发中')">
+          <button class="flex flex-col items-center gap-2 tap-effect" onclick="showPage('valuation')">
             <div class="w-14 h-14 bg-gradient-to-br from-warning/10 to-warning/20 rounded-2xl flex items-center justify-center shadow-sm">
-              <i class="fas fa-analytics text-warning text-xl"></i>
+              <i class="fas fa-calculator text-warning text-xl"></i>
             </div>
-            <span class="text-xs text-gray-600 font-medium">数据中心</span>
+            <span class="text-xs text-gray-600 font-medium">估值体检</span>
           </button>
+        </div>
+
+        <!-- 消息中心 -->
+        <div class="p-4 bg-white border-b border-gray-100">
+          <div class="flex items-center justify-between mb-3">
+            <h3 class="font-bold text-gray-800 text-sm flex items-center gap-2">
+              <i class="fas fa-bell text-primary"></i>消息通知
+            </h3>
+            <span class="px-2 py-0.5 bg-error/10 text-error text-xs rounded-full font-bold">3 条新消息</span>
+          </div>
+          <div class="space-y-2">
+            <div class="p-3 bg-gray-50 rounded-xl flex items-center gap-3 tap-effect">
+              <div class="w-10 h-10 bg-gradient-to-br from-primary/10 to-secondary/10 rounded-xl flex items-center justify-center flex-shrink-0">
+                <i class="fas fa-bullhorn text-primary text-sm"></i>
+              </div>
+              <div class="flex-1 min-w-0">
+                <p class="text-xs font-semibold text-gray-800 truncate">系统通知 · 刚刚</p>
+                <p class="text-xs text-gray-500 truncate">您关注的项目"智慧医疗AI"有新动态</p>
+              </div>
+              <span class="w-2 h-2 bg-error rounded-full flex-shrink-0"></span>
+            </div>
+            <div class="p-3 bg-gray-50 rounded-xl flex items-center gap-3 tap-effect">
+              <div class="w-10 h-10 bg-gradient-to-br from-success/10 to-success/20 rounded-xl flex items-center justify-center flex-shrink-0">
+                <i class="fas fa-comment-dots text-success text-sm"></i>
+              </div>
+              <div class="flex-1 min-w-0">
+                <p class="text-xs font-semibold text-gray-800 truncate">智慧医疗 AI · 创始人 · 2小时前</p>
+                <p class="text-xs text-gray-500 truncate">感谢您的关注，期待进一步交流</p>
+              </div>
+            </div>
+            <div class="p-3 bg-gray-50 rounded-xl flex items-center gap-3 tap-effect">
+              <div class="w-10 h-10 bg-gradient-to-br from-accent/10 to-warning/10 rounded-xl flex items-center justify-center flex-shrink-0">
+                <i class="fas fa-star text-accent text-sm"></i>
+              </div>
+              <div class="flex-1 min-w-0">
+                <p class="text-xs font-semibold text-gray-800 truncate">新项目推荐 · 昨天</p>
+                <p class="text-xs text-gray-500 truncate">3个新项目符合您的投资偏好</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 我的项目 -->
+        <div class="p-4 bg-white border-b border-gray-100">
+          <div class="flex items-center justify-between mb-3">
+            <h3 class="font-bold text-gray-800 text-sm flex items-center gap-2">
+              <i class="fas fa-folder-open text-primary"></i>我的项目
+            </h3>
+            <button class="text-xs text-primary font-medium tap-effect" onclick="showPage('publish')">+ 发布新项目</button>
+          </div>
+          <div class="grid grid-cols-3 gap-2 mb-3">
+            <div class="p-3 bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl text-center">
+              <p class="text-lg font-bold text-primary">2</p>
+              <p class="text-xs text-gray-500">进行中</p>
+            </div>
+            <div class="p-3 bg-gradient-to-br from-green-50 to-green-100 rounded-xl text-center">
+              <p class="text-lg font-bold text-success">1</p>
+              <p class="text-xs text-gray-500">已完成</p>
+            </div>
+            <div class="p-3 bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl text-center">
+              <p class="text-lg font-bold text-gray-400">1</p>
+              <p class="text-xs text-gray-500">草稿</p>
+            </div>
+          </div>
+          <div class="space-y-2">
+            <div class="p-3 bg-gray-50 rounded-xl flex items-center justify-between tap-effect" onclick="showToast('📊 项目详情开发中')">
+              <div>
+                <p class="text-xs font-bold text-gray-800">智能家居控制系统</p>
+                <p class="text-xs text-gray-400">物联网 · Pre-A轮 · 融资600万</p>
+              </div>
+              <span class="px-2 py-0.5 bg-blue-50 text-primary text-xs rounded-full font-medium">进行中</span>
+            </div>
+            <div class="p-3 bg-gray-50 rounded-xl flex items-center justify-between tap-effect" onclick="showToast('📊 项目详情开发中')">
+              <div>
+                <p class="text-xs font-bold text-gray-800">社区团购 SaaS 平台</p>
+                <p class="text-xs text-gray-400">电商 · 天使轮 · 融资300万</p>
+              </div>
+              <span class="px-2 py-0.5 bg-blue-50 text-primary text-xs rounded-full font-medium">进行中</span>
+            </div>
+          </div>
         </div>
         
         <div class="p-4 space-y-3">
@@ -611,79 +1127,184 @@ function renderSettingItem(icon, title, toastMsg) {
   `;
 }
 
-function renderMyProjectsPage() {
+// ==================== 📡 雷达页面（独立Tab） ====================
+
+// 雷达页 Mock 数据：Look-alike 项目
+const radarMockProjects = [
+  { name: '连锁美容院（华南）', industry: '美容美发', similarity: 91, dailyFlowK: 7.2, pm: 38, monthlyRev: 21.6, icon: '💇', desc: '日流水稳定，客单价高，复购率好', leverage: '1:4', irr: 128 },
+  { name: '社区健身工作室', industry: '服务业', similarity: 85, dailyFlowK: 5.5, pm: 32, monthlyRev: 16.5, icon: '🏋️', desc: '会员制现金流好，季节性波动小', leverage: '1:3', irr: 89 },
+  { name: '奶茶连锁（三线城市）', industry: '餐饮', similarity: 82, dailyFlowK: 8.8, pm: 25, monthlyRev: 26.4, icon: '🧋', desc: '流水大、利润率中等，扩张空间大', leverage: '1:3', irr: 72 },
+  { name: '宠物医院连锁', industry: '医疗健康', similarity: 79, dailyFlowK: 6.0, pm: 35, monthlyRev: 18.0, icon: '🐕', desc: '高客单价，刚需赛道，竞争少', leverage: '1:4', irr: 115 },
+  { name: '母婴连锁店', industry: '零售', similarity: 76, dailyFlowK: 12.0, pm: 18, monthlyRev: 36.0, icon: '👶', desc: '流水大但利润薄，需精细运营', leverage: '1:2', irr: 45 },
+  { name: '编程培训机构', industry: '教育', similarity: 73, dailyFlowK: 4.5, pm: 42, monthlyRev: 13.5, icon: '💻', desc: '利润率极高，但季节性明显', leverage: '1:4', irr: 135 },
+];
+
+function renderRadarPage() {
   return `
-    <!-- 我的项目页 -->
-    <div id="page-my-projects" class="page h-screen">
+    <div id="page-radar" class="page h-screen bg-gray-50">
+      <!-- 顶部栏 -->
       <header class="glass-effect px-4 py-3 flex items-center justify-between border-b border-gray-100 sticky top-0 z-10">
-        <span class="font-bold text-gray-800">我的项目</span>
-        <button class="px-4 py-2 bg-gradient-finance text-white text-sm rounded-full shadow-finance tap-effect" onclick="showPage('publish')">
-          <i class="fas fa-plus mr-1"></i> 发布项目
-        </button>
+        <div class="flex items-center gap-2">
+          <span class="text-xl">📡</span>
+          <span class="font-semibold text-gray-800">雷达</span>
+        </div>
+        <div class="flex items-center gap-2">
+          <button class="px-3 py-1.5 text-xs font-medium text-primary bg-primary/5 border border-primary/20 rounded-full tap-effect" onclick="showPage('valuation')">
+            <i class="fas fa-stethoscope mr-1"></i>深度体检
+          </button>
+        </div>
       </header>
-      
-      <div class="flex-1 overflow-auto no-scrollbar">
-        <!-- 项目统计 -->
-        <div class="p-4 grid grid-cols-3 gap-3">
-          <div class="p-4 bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl text-center neumorphic">
-            <p class="text-2xl font-bold text-primary">2</p>
-            <p class="text-xs text-gray-500 mt-1">进行中</p>
-          </div>
-          <div class="p-4 bg-gradient-to-br from-green-50 to-green-100 rounded-xl text-center neumorphic">
-            <p class="text-2xl font-bold text-success">1</p>
-            <p class="text-xs text-gray-500 mt-1">已完成</p>
-          </div>
-          <div class="p-4 bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl text-center neumorphic">
-            <p class="text-2xl font-bold text-gray-400">1</p>
-            <p class="text-xs text-gray-500 mt-1">草稿</p>
+
+      <div class="flex-1 overflow-auto no-scrollbar pb-24">
+
+        <!-- 引导提示 -->
+        <div class="px-4 py-3 bg-gradient-to-r from-purple-50 via-indigo-50 to-blue-50">
+          <div class="flex items-center gap-2">
+            <span class="text-lg">🔭</span>
+            <span class="text-sm font-semibold text-purple-800">发现好盘口</span>
+            <span class="text-xs text-purple-600">类似项目 + 行业参考 + 快速体检</span>
           </div>
         </div>
-        
-        <!-- 项目列表 -->
-        <div class="p-4 space-y-4">
-          <p class="text-xs text-gray-400 font-medium">进行中的项目</p>
-          
-          ${renderMyProjectCard('智能家居控制系统', '物联网 · Pre-A轮', '600万', '8', 45, '进行中')}
-          ${renderMyProjectCard('社区团购 SaaS 平台', '电商 · 天使轮', '300万', '3', 20, '进行中')}
-          
-          <p class="text-xs text-gray-400 font-medium pt-4">已完成</p>
-          
-          ${renderMyProjectCard('健康管理 App', '医疗健康 · 天使轮', '200万', null, 100, '已完成')}
+
+        <!-- 快速体检入口 -->
+        <div class="mx-4 mt-4 p-4 rounded-2xl bg-gradient-to-br from-primary/5 to-secondary/10 border border-primary/20 tap-effect" onclick="showPage('valuation')">
+          <div class="flex items-center gap-3">
+            <div class="w-12 h-12 bg-white rounded-xl flex items-center justify-center shadow-sm">
+              <i class="fas fa-stethoscope text-primary text-xl"></i>
+            </div>
+            <div class="flex-1">
+              <p class="text-sm font-bold text-gray-800">有项目？30秒评估值不值得做</p>
+              <p class="text-xs text-gray-500 mt-0.5">输入几个核心数据 → 秒出六维体检 + 交易建议</p>
+            </div>
+            <i class="fas fa-chevron-right text-primary"></i>
+          </div>
         </div>
+
+        <!-- Look-alike 项目列表 -->
+        <div class="px-4 mt-4">
+          <div class="flex items-center justify-between mb-3">
+            <h3 class="font-bold text-gray-800 text-sm flex items-center gap-2">
+              <span class="text-lg">🔭</span>
+              值得关注的盘口
+            </h3>
+            <span class="text-xs text-gray-400">基于 P=MV 物理模型匹配</span>
+          </div>
+
+          <div class="space-y-3">
+            ${radarMockProjects.map(function(p) {
+              var simColor = p.similarity >= 85 ? 'text-success bg-emerald-50 border-emerald-200' : p.similarity >= 70 ? 'text-primary bg-blue-50 border-blue-200' : 'text-gray-600 bg-gray-50 border-gray-200';
+              var irrColor = p.irr > 80 ? 'text-success' : p.irr > 40 ? 'text-primary' : 'text-gray-700';
+              return `
+                <div class="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+                  <div class="p-4">
+                    <div class="flex items-center justify-between mb-2">
+                      <div class="flex items-center gap-2">
+                        <span class="text-xl">${p.icon}</span>
+                        <div>
+                          <p class="text-sm font-bold text-gray-800">${p.name}</p>
+                          <p class="text-xs text-gray-400">${p.industry}</p>
+                        </div>
+                      </div>
+                      <span class="px-2 py-0.5 rounded-full text-xs font-bold border ${simColor}">${p.similarity}% 相似</span>
+                    </div>
+                    <p class="text-xs text-gray-500 mb-3">${p.desc}</p>
+                    <div class="grid grid-cols-4 gap-1.5 text-center">
+                      <div class="p-2 rounded-lg bg-gray-50">
+                        <p class="text-xs text-gray-400">日流水</p>
+                        <p class="text-xs font-bold text-gray-700">${p.dailyFlowK}K</p>
+                      </div>
+                      <div class="p-2 rounded-lg bg-gray-50">
+                        <p class="text-xs text-gray-400">利润率</p>
+                        <p class="text-xs font-bold text-gray-700">${p.pm}%</p>
+                      </div>
+                      <div class="p-2 rounded-lg bg-gray-50">
+                        <p class="text-xs text-gray-400">推荐杠杆</p>
+                        <p class="text-xs font-bold text-gray-700">${p.leverage}</p>
+                      </div>
+                      <div class="p-2 rounded-lg bg-gray-50">
+                        <p class="text-xs text-gray-400">预估IRR</p>
+                        <p class="text-xs font-bold ${irrColor}">${p.irr}%</p>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="px-4 pb-3 flex gap-2">
+                    <button class="flex-1 py-2 rounded-lg text-xs font-semibold text-amber-700 bg-amber-50 border border-amber-200 tap-effect" onclick="applyRadarTemplate('${escapeHtml(p.name)}', ${p.dailyFlowK * 1000}, ${p.pm})">
+                      <i class="fas fa-copy mr-1"></i>套用到造局
+                    </button>
+                    <button class="flex-1 py-2 rounded-lg text-xs font-semibold text-primary bg-primary/5 border border-primary/20 tap-effect" onclick="showToast('📊 ${escapeHtml(p.name)} 详情开发中')">
+                      <i class="fas fa-search-plus mr-1"></i>查看详情
+                    </button>
+                  </div>
+                </div>
+              `;
+            }).join('')}
+          </div>
+        </div>
+
+        <!-- 行业参考数据 -->
+        <div class="px-4 mt-4 mb-6">
+          <div class="flex items-center gap-2 mb-3">
+            <i class="fas fa-chart-bar text-primary text-sm"></i>
+            <h3 class="font-bold text-gray-800 text-sm">行业参考基准</h3>
+            <span class="text-xs text-gray-400">建立好盘口的直觉</span>
+          </div>
+          <div class="bg-white rounded-2xl shadow-finance border border-gray-100 overflow-hidden">
+            <div class="overflow-x-auto">
+              <table class="w-full text-xs">
+                <thead>
+                  <tr class="bg-gray-50 text-gray-500">
+                    <th class="px-3 py-2.5 text-left font-semibold">行业</th>
+                    <th class="px-3 py-2.5 text-right font-semibold">日流水</th>
+                    <th class="px-3 py-2.5 text-right font-semibold">利润率</th>
+                    <th class="px-3 py-2.5 text-right font-semibold">PE</th>
+                    <th class="px-3 py-2.5 text-right font-semibold">周转</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-50">
+                  ${Object.entries(industryBenchmarks).map(function([ind, b]) {
+                    var pmColor = b.pm >= 25 ? 'text-success font-bold' : b.pm >= 15 ? 'text-primary' : 'text-gray-700';
+                    return `<tr class="hover:bg-gray-50 cursor-pointer tap-effect" onclick="showPage('deal-lab'); setTimeout(function(){ selectDealLabIndustry('${ind}', document.querySelector('.dl-ind-tag[onclick*=\\'${ind}\\']')); }, 100);">
+                      <td class="px-3 py-2.5 font-medium text-gray-800">${ind}</td>
+                      <td class="px-3 py-2.5 text-right text-gray-700">${(b.dailyFlow / 1000).toFixed(1)}K</td>
+                      <td class="px-3 py-2.5 text-right ${pmColor}">${b.pm}%</td>
+                      <td class="px-3 py-2.5 text-right text-gray-700">${b.pe}</td>
+                      <td class="px-3 py-2.5 text-right text-gray-500">${b.turnover}天</td>
+                    </tr>`;
+                  }).join('')}
+                </tbody>
+              </table>
+            </div>
+            <div class="px-4 py-2 bg-gray-50 border-t border-gray-100">
+              <p class="text-xs text-gray-400 text-center"><i class="fas fa-info-circle mr-1"></i>点击行业行 → 直接跳转造局工作台，自动填入该行业基准数据</p>
+            </div>
+          </div>
+        </div>
+
       </div>
-      
-      ${renderBottomNav('my-projects')}
+
+      ${renderBottomNav('radar')}
     </div>
   `;
 }
 
-function renderMyProjectCard(title, desc, amount, interested, progress, status) {
-  const isCompleted = status === '已完成';
-  return `
-    <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-4 tap-effect card-hover ${isCompleted ? 'opacity-70' : ''}" onclick="showToast('📊 项目详情开发中')">
-      <div class="flex justify-between items-start mb-3">
-        <div>
-          <h3 class="font-bold text-gray-800">${title}</h3>
-          <p class="text-xs text-gray-400 mt-1">${desc}</p>
-        </div>
-        <span class="px-3 py-1 ${isCompleted ? 'bg-success/10 text-success' : 'bg-blue-50 text-primary'} text-xs rounded-full font-medium">
-          ${status}
-        </span>
-      </div>
-      <div class="flex items-center justify-between text-sm mb-3">
-        <span class="text-gray-500">融资目标：<strong class="text-gray-800">${amount}</strong></span>
-        ${interested ? `<span class="text-gray-500">已有 <strong class="text-success">${interested}</strong> 位投资者意向</span>` : `<span class="text-gray-500">2025-08 完成</span>`}
-      </div>
-      ${!isCompleted ? `
-        <div class="flex items-center justify-between">
-          <div class="flex-1 h-2.5 bg-gray-100 rounded-full overflow-hidden mr-3">
-            <div class="h-full bg-gradient-to-r from-primary to-secondary rounded-full" style="width: ${progress}%"></div>
-          </div>
-          <span class="text-xs text-gray-500 font-medium">${progress}%</span>
-        </div>
-      ` : ''}
-    </div>
-  `;
+function applyRadarTemplate(name, dailyFlow, pm) {
+  // 切换到造局页面
+  showPage('deal-lab');
+  setTimeout(function() {
+    // 设置流水和利润率
+    var flowSlider = document.getElementById('dl-daily-flow');
+    var pmSlider = document.getElementById('dl-pm');
+    if (flowSlider) {
+      flowSlider.value = dailyFlow;
+      document.getElementById('dl-daily-flow-val').textContent = dailyFlow + '元';
+    }
+    if (pmSlider) {
+      pmSlider.value = pm;
+      document.getElementById('dl-pm-val').textContent = pm + '%';
+    }
+    updateDealLab();
+    showToast('✅ 已套用「' + name + '」的参数到造局工作台');
+  }, 150);
 }
 
 function renderPublishPage() {
@@ -722,7 +1343,7 @@ function renderPublishPage() {
       
       <!-- 底部按钮 -->
       <div class="p-4 bg-white border-t border-gray-100 nav-shadow">
-        <button class="w-full py-4 bg-gradient-finance text-white rounded-xl font-bold tap-effect shadow-finance" onclick="showToast('✅ 已保存，进入下一步'); showPage('my-projects')">
+        <button class="w-full py-4 bg-gradient-finance text-white rounded-xl font-bold tap-effect shadow-finance" onclick="showToast('✅ 已保存，进入下一步'); showPage('profile')">
           下一步：团队信息 <i class="fas fa-arrow-right ml-2"></i>
         </button>
       </div>
@@ -786,9 +1407,9 @@ function renderFormTextarea(label, placeholder, required = false) {
 function renderBottomNav(activePage) {
   const navItems = [
     { id: 'home', icon: 'home', label: '发现' },
-    { id: 'my-projects', icon: 'folder', label: '我的项目' },
+    { id: 'deal-lab', icon: 'dice', label: '造局', emoji: '🎰' },
     { id: 'publish', icon: 'plus', label: '发布', isCenter: true },
-    { id: 'messages', icon: 'bell', label: '消息', hasBadge: true },
+    { id: 'radar', icon: 'satellite-dish', label: '雷达', emoji: '📡' },
     { id: 'profile', icon: 'user', label: '我的' }
   ];
 
