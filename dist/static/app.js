@@ -187,6 +187,7 @@ function renderApp() {
     ${renderDealLabPage()}
     ${renderRadarPage()}
     ${renderProfilePage()}
+    ${renderMyProjectsPage()}
     ${renderPublishPage()}
     ${renderValuationPage()}
     ${renderToast()}
@@ -995,11 +996,11 @@ function renderProfilePage() {
       <div class="flex-1 overflow-auto no-scrollbar pb-24">
         <!-- 快捷功能区 -->
         <div class="p-4 grid grid-cols-4 gap-4 bg-white border-b border-gray-100">
-          <button class="flex flex-col items-center gap-2 tap-effect" onclick="showPage('publish')">
+          <button class="flex flex-col items-center gap-2 tap-effect" onclick="showPage('my-projects')">
             <div class="w-14 h-14 bg-gradient-to-br from-primary/10 to-primary/20 rounded-2xl flex items-center justify-center shadow-sm">
-              <i class="fas fa-plus-circle text-primary text-xl"></i>
+              <i class="fas fa-folder-open text-primary text-xl"></i>
             </div>
-            <span class="text-xs text-gray-600 font-medium">发布项目</span>
+            <span class="text-xs text-gray-600 font-medium">我的项目</span>
           </button>
           <button class="flex flex-col items-center gap-2 tap-effect" onclick="showToast('📊 投资记录开发中')">
             <div class="w-14 h-14 bg-gradient-to-br from-success/10 to-success/20 rounded-2xl flex items-center justify-center shadow-sm">
@@ -1061,15 +1062,17 @@ function renderProfilePage() {
           </div>
         </div>
 
-        <!-- 我的项目 -->
-        <div class="p-4 bg-white border-b border-gray-100">
+        <!-- 我的项目摘要 -->
+        <div class="p-4 bg-white border-b border-gray-100 tap-effect" onclick="showPage('my-projects')">
           <div class="flex items-center justify-between mb-3">
             <h3 class="font-bold text-gray-800 text-sm flex items-center gap-2">
               <i class="fas fa-folder-open text-primary"></i>我的项目
             </h3>
-            <button class="text-xs text-primary font-medium tap-effect" onclick="showPage('publish')">+ 发布新项目</button>
+            <div class="flex items-center gap-1 text-xs text-primary font-medium">
+              查看全部 <i class="fas fa-chevron-right text-xs"></i>
+            </div>
           </div>
-          <div class="grid grid-cols-3 gap-2 mb-3">
+          <div class="grid grid-cols-3 gap-2">
             <div class="p-3 bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl text-center">
               <p class="text-lg font-bold text-primary">2</p>
               <p class="text-xs text-gray-500">进行中</p>
@@ -1081,22 +1084,6 @@ function renderProfilePage() {
             <div class="p-3 bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl text-center">
               <p class="text-lg font-bold text-gray-400">1</p>
               <p class="text-xs text-gray-500">草稿</p>
-            </div>
-          </div>
-          <div class="space-y-2">
-            <div class="p-3 bg-gray-50 rounded-xl flex items-center justify-between tap-effect" onclick="showToast('📊 项目详情开发中')">
-              <div>
-                <p class="text-xs font-bold text-gray-800">智能家居控制系统</p>
-                <p class="text-xs text-gray-400">物联网 · Pre-A轮 · 融资600万</p>
-              </div>
-              <span class="px-2 py-0.5 bg-blue-50 text-primary text-xs rounded-full font-medium">进行中</span>
-            </div>
-            <div class="p-3 bg-gray-50 rounded-xl flex items-center justify-between tap-effect" onclick="showToast('📊 项目详情开发中')">
-              <div>
-                <p class="text-xs font-bold text-gray-800">社区团购 SaaS 平台</p>
-                <p class="text-xs text-gray-400">电商 · 天使轮 · 融资300万</p>
-              </div>
-              <span class="px-2 py-0.5 bg-blue-50 text-primary text-xs rounded-full font-medium">进行中</span>
             </div>
           </div>
         </div>
@@ -1305,6 +1292,179 @@ function applyRadarTemplate(name, dailyFlow, pm) {
     updateDealLab();
     showToast('✅ 已套用「' + name + '」的参数到造局工作台');
   }, 150);
+}
+
+// ==================== 📂 我的项目页面（独立全屏页） ====================
+
+const myProjectsMock = [
+  {
+    id: 'mp1', title: '智能家居控制系统', industry: '物联网', stage: 'Pre-A', city: '深圳',
+    amount: 600, interestedCount: 18, progress: 72, status: 'active', icon: '🏠',
+    desc: '基于 Matter 协议的全屋智能中枢，已接入 200+ 品牌设备',
+    highlights: ['DAU 3.2 万', '设备接入 200+', '复购率 65%'],
+    updated: '2026-03-04'
+  },
+  {
+    id: 'mp2', title: '社区团购 SaaS 平台', industry: '电商', stage: '天使轮', city: '杭州',
+    amount: 300, interestedCount: 9, progress: 45, status: 'active', icon: '🛒',
+    desc: '为社区团长提供一站式开团、履约、结算 SaaS 工具',
+    highlights: ['GMV 月均 800 万', '团长 1.2 万', '履约率 98%'],
+    updated: '2026-03-02'
+  },
+  {
+    id: 'mp3', title: '健康管理 App', industry: '医疗健康', stage: 'A轮', city: '北京',
+    amount: 1500, interestedCount: 26, progress: 100, status: 'completed', icon: '💊',
+    desc: '慢病管理+AI随访，与 30+ 社区医院合作',
+    highlights: ['注册用户 50 万', '月活 12 万', '续费率 78%'],
+    updated: '2026-02-20'
+  },
+  {
+    id: 'mp4', title: '新能源充电桩运营', industry: '新能源', stage: '种子轮', city: '成都',
+    amount: 200, interestedCount: 0, progress: 0, status: 'draft', icon: '⚡',
+    desc: '社区+商业停车场充电桩投放与运营',
+    highlights: ['已签约 15 个场地', '预估日均 300 次充电'],
+    updated: '2026-03-05'
+  }
+];
+
+function renderMyProjectsPage() {
+  const active = myProjectsMock.filter(p => p.status === 'active');
+  const completed = myProjectsMock.filter(p => p.status === 'completed');
+  const draft = myProjectsMock.filter(p => p.status === 'draft');
+
+  function statusLabel(s) {
+    if (s === 'active') return '<span class="px-2 py-0.5 text-xs font-bold rounded-full bg-primary/10 text-primary">进行中</span>';
+    if (s === 'completed') return '<span class="px-2 py-0.5 text-xs font-bold rounded-full bg-success/10 text-success">已完成</span>';
+    return '<span class="px-2 py-0.5 text-xs font-bold rounded-full bg-gray-200 text-gray-500">草稿</span>';
+  }
+
+  function progressColor(s) {
+    if (s === 'completed') return 'from-success to-emerald-400';
+    if (s === 'active') return 'from-primary to-secondary';
+    return 'from-gray-300 to-gray-400';
+  }
+
+  function renderCard(p) {
+    return `
+      <div class="bg-white rounded-2xl border border-gray-100 overflow-hidden card-hover tap-effect mb-4 shadow-sm">
+        <!-- 顶部状态栏 -->
+        <div class="px-4 pt-4 flex items-center justify-between">
+          <div class="flex items-center gap-2">
+            <span class="text-2xl">${p.icon}</span>
+            <div>
+              <h4 class="font-bold text-gray-800 text-sm">${p.title}</h4>
+              <p class="text-xs text-gray-400 mt-0.5">${p.industry} · ${p.stage} · ${p.city}</p>
+            </div>
+          </div>
+          ${statusLabel(p.status)}
+        </div>
+        <!-- 描述 -->
+        <p class="px-4 mt-2 text-xs text-gray-500 leading-relaxed">${p.desc}</p>
+        <!-- 亮点标签 -->
+        <div class="px-4 mt-2 flex flex-wrap gap-1.5">
+          ${p.highlights.map(h => `<span class="px-2 py-0.5 text-xs bg-primary/5 text-primary/80 rounded-full border border-primary/10">${h}</span>`).join('')}
+        </div>
+        <!-- 融资进度 -->
+        <div class="px-4 mt-3">
+          <div class="flex items-center justify-between text-xs mb-1.5">
+            <span class="text-gray-500">融资目标 <strong class="text-gray-800">${p.amount}万</strong></span>
+            <span class="font-bold ${p.status === 'completed' ? 'text-success' : 'text-primary'}">${p.progress}%</span>
+          </div>
+          <div class="h-2 bg-gray-100 rounded-full overflow-hidden">
+            <div class="h-full bg-gradient-to-r ${progressColor(p.status)} rounded-full transition-all duration-500" style="width:${p.progress}%"></div>
+          </div>
+        </div>
+        <!-- 底部信息 -->
+        <div class="px-4 py-3 mt-2 border-t border-gray-50 flex items-center justify-between">
+          <div class="flex items-center gap-3 text-xs text-gray-400">
+            <span><i class="fas fa-user-friends mr-1"></i>${p.interestedCount} 位投资人关注</span>
+            <span><i class="fas fa-clock mr-1"></i>${p.updated}</span>
+          </div>
+          ${p.status === 'draft'
+            ? '<button class="text-xs font-semibold text-primary tap-effect" onclick="showPage(\'publish\')"><i class="fas fa-edit mr-1"></i>继续编辑</button>'
+            : p.status === 'active'
+              ? '<button class="text-xs font-semibold text-primary tap-effect" onclick="showToast(\'📊 项目数据面板开发中\')"><i class="fas fa-chart-line mr-1"></i>查看数据</button>'
+              : '<button class="text-xs font-semibold text-success tap-effect" onclick="showToast(\'📋 投后报告开发中\')"><i class="fas fa-file-alt mr-1"></i>投后报告</button>'
+          }
+        </div>
+      </div>
+    `;
+  }
+
+  return `
+    <div id="page-my-projects" class="page h-screen flex flex-col">
+      <!-- 头部 -->
+      <header class="glass-effect px-4 py-3 flex items-center justify-between border-b border-gray-100 sticky top-0 z-10">
+        <button class="p-2 -ml-2 tap-effect" onclick="showPage('profile')">
+          <i class="fas fa-arrow-left text-gray-600"></i>
+        </button>
+        <span class="font-bold text-gray-800">我的项目</span>
+        <button class="text-xs font-semibold text-white bg-gradient-finance px-3 py-1.5 rounded-full shadow-finance tap-effect" onclick="showPage('publish')">
+          <i class="fas fa-plus mr-1"></i>发布新项目
+        </button>
+      </header>
+
+      <div class="flex-1 overflow-auto no-scrollbar bg-gray-50 pb-6">
+        <!-- 统计面板 -->
+        <div class="p-4 bg-white border-b border-gray-100">
+          <div class="grid grid-cols-3 gap-3">
+            <div class="p-3 bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl text-center">
+              <p class="text-2xl font-bold text-primary">${active.length}</p>
+              <p class="text-xs text-gray-500 mt-1">进行中</p>
+            </div>
+            <div class="p-3 bg-gradient-to-br from-green-50 to-green-100 rounded-xl text-center">
+              <p class="text-2xl font-bold text-success">${completed.length}</p>
+              <p class="text-xs text-gray-500 mt-1">已完成</p>
+            </div>
+            <div class="p-3 bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl text-center">
+              <p class="text-2xl font-bold text-gray-400">${draft.length}</p>
+              <p class="text-xs text-gray-500 mt-1">草稿</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- 筛选 Tab -->
+        <div class="px-4 pt-4 pb-2 flex items-center gap-2">
+          <button class="mp-tab px-3 py-1.5 text-xs font-bold rounded-full bg-primary text-white" onclick="filterMyProjects('all', this)">全部 (${myProjectsMock.length})</button>
+          <button class="mp-tab px-3 py-1.5 text-xs font-bold rounded-full bg-gray-100 text-gray-500" onclick="filterMyProjects('active', this)">进行中 (${active.length})</button>
+          <button class="mp-tab px-3 py-1.5 text-xs font-bold rounded-full bg-gray-100 text-gray-500" onclick="filterMyProjects('completed', this)">已完成 (${completed.length})</button>
+          <button class="mp-tab px-3 py-1.5 text-xs font-bold rounded-full bg-gray-100 text-gray-500" onclick="filterMyProjects('draft', this)">草稿 (${draft.length})</button>
+        </div>
+
+        <!-- 项目列表 -->
+        <div id="my-projects-list" class="px-4 pt-2">
+          ${myProjectsMock.map(p => renderCard(p)).join('')}
+        </div>
+
+        <!-- 空状态提示 -->
+        <div id="mp-empty" class="hidden px-4 py-16 text-center">
+          <div class="text-5xl mb-4">📂</div>
+          <p class="text-gray-400 text-sm">该分类下暂无项目</p>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+// 我的项目页 — Tab 筛选
+function filterMyProjects(status, btn) {
+  // 切换 Tab 样式
+  document.querySelectorAll('.mp-tab').forEach(t => {
+    t.className = 'mp-tab px-3 py-1.5 text-xs font-bold rounded-full bg-gray-100 text-gray-500';
+  });
+  btn.className = 'mp-tab px-3 py-1.5 text-xs font-bold rounded-full bg-primary text-white';
+
+  const list = document.getElementById('my-projects-list');
+  const cards = list.querySelectorAll(':scope > div');
+  let visibleCount = 0;
+
+  myProjectsMock.forEach((p, i) => {
+    const show = (status === 'all' || p.status === status);
+    cards[i].style.display = show ? '' : 'none';
+    if (show) visibleCount++;
+  });
+
+  document.getElementById('mp-empty').classList.toggle('hidden', visibleCount > 0);
 }
 
 function renderPublishPage() {
