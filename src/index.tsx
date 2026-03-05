@@ -665,7 +665,11 @@ function localValuationEngine(d: any) {
       investorPitch
     },
     // 结构化行动建议 — 红黄绿优先级
-    actionItems: buildActionItems(d, { profitScore, cashScore, growthScore, scaleScore, opScore, debtScore, pm, pe, costMultiple })
+    actionItems: buildActionItems(d, { profitScore, cashScore, growthScore, scaleScore, opScore, debtScore, pm, pe, costMultiple }),
+    // 🐺 狼视角 — 杠杆赌局建议
+    wolfView: buildWolfView(d, { pm, dailyFlowK, totalScore, cashScore, growthScore, debtScore, pe, archetype, npWan, revWan, neutralVal: neutralVal * growthMultiplier }),
+    // 🔭 Look-alike — 跨行业相似项目
+    lookAlike: buildLookAlike(d, { pm, dailyFlowK, cashScore, growthScore })
   }
 }
 
@@ -875,6 +879,141 @@ function buildActionItems(d: any, scores: any): any[] {
     items.push({ priority: 'green', text: '持续积累经营数据，数据越完整下次体检诊断越准' })
   }
   return items
+}
+
+// ==================== 狼视角（杠杆赌局建议 — 给资金端操盘手看的） ====================
+function buildWolfView(d: any, s: any): any {
+  const pm = s.pm
+  const dailyFlow = d.dailyCashFlow
+  const dailyFlowK = s.dailyFlowK
+
+  // 推荐杠杆比
+  let leverageRatio: string, leverageNum: number
+  if (pm > 25 && s.cashScore > 70) { leverageRatio = '1:4'; leverageNum = 4 }
+  else if (pm > 15 && s.cashScore > 60) { leverageRatio = '1:3'; leverageNum = 3 }
+  else if (pm > 8) { leverageRatio = '1:2'; leverageNum = 2 }
+  else if (pm > 0) { leverageRatio = '1:1'; leverageNum = 1 }
+  else { leverageRatio = '不建议加杠杆'; leverageNum = 0 }
+
+  // 推荐劣后出资额（基于估值的 5~15%）
+  const sugWolf = Math.max(5, Math.round(s.neutralVal * (pm > 20 ? 0.08 : pm > 10 ? 0.12 : 0.15)))
+  const sugSenior = sugWolf * leverageNum
+  const totalPool = sugWolf + sugSenior
+
+  // 推荐截留比例
+  const sugRetain = pm > 20 ? 15 : pm > 10 ? 20 : pm > 0 ? 25 : 0
+  // 推荐超额分成
+  const sugWolfShare = pm > 20 ? 92 : pm > 15 ? 88 : pm > 8 ? 82 : 70
+
+  // 简单IRR估算（中性场景）
+  const monthlyRetain = dailyFlow * (sugRetain / 100) * 30
+  const seniorTotal = sugSenior * 10000 * 1.12 // 本金+12%年化
+  const monthsToPay = monthlyRetain > 0 ? Math.ceil(seniorTotal / monthlyRetain) : 99
+  const remainMonths = Math.max(0, 12 - monthsToPay)
+  const monthlyNetProfit = dailyFlow * (pm / 100) * 30 / 10000 // 万
+  const wolfProfit = monthlyNetProfit * remainMonths * (sugWolfShare / 100)
+  const irr = sugWolf > 0 ? Math.round(wolfProfit / sugWolf * 100) : 0
+
+  // 核心判断
+  let verdict: string
+  if (pm <= 0) {
+    verdict = `别碰——项目在亏钱（利润率${pm.toFixed(0)}%），做杠杆等于加速死亡。等扭亏了再来`
+  } else if (pm < 8) {
+    verdict = `鸡肋盘——利润率${pm.toFixed(0)}%太薄，杠杆空间极小，做的话IRR也就${irr}%，不如找更肥的`
+  } else if (pm < 15) {
+    verdict = `能做但别贪——利润率${pm.toFixed(0)}%，用${leverageRatio}杠杆撬，中性IRR约${irr}%，控制好截留比例别断项目的血`
+  } else if (pm < 25) {
+    verdict = `好盘口——利润率${pm.toFixed(0)}%日流水${dailyFlowK}K稳定，用${leverageRatio}杠杆，中性IRR ${irr}%，值得做`
+  } else {
+    verdict = `肥肉——利润率${pm.toFixed(0)}%日流水${dailyFlowK}K，用${leverageRatio}杠杆撬，中性IRR ${irr}%，这种盘口不多见，赶紧锁`
+  }
+
+  const bestStructure = pm > 0
+    ? `建议${sugWolf}万劣后+${sugSenior}万优先（${leverageRatio}），截留${sugRetain}%日流水，${monthsToPay < 12 ? monthsToPay + '个月回本后' : '回本周期较长，'}吃${sugWolfShare}%超额`
+    : `项目在亏损，不建议设计杠杆结构——先等利润率转正`
+
+  const safetyMargin = totalPool > 0 ? Math.round(sugSenior / totalPool * 100) : 0
+
+  let riskAppetite: string
+  if (s.totalScore >= 75 && pm > 20) riskAppetite = `激进——安全垫${safetyMargin}%够厚，项目基本面硬，可以拉满杠杆`
+  else if (s.totalScore >= 60 && pm > 10) riskAppetite = `中等偏激进——安全垫${safetyMargin}%，基本面还行但别超${leverageRatio}`
+  else if (pm > 0) riskAppetite = `保守——利润率薄安全垫不够，杠杆压低，宁可少赚别翻车`
+  else riskAppetite = `回避——不具备杠杆条件`
+
+  const killFloor = Math.round(dailyFlow * 0.6 / 1000 * 10) / 10
+  const killSwitch = pm > 0
+    ? `月流水跌破${killFloor}K/天连续2个月，立刻触发回购条款——别犹豫，保命比保面子重要`
+    : `项目已在亏损，如果进场需设置更严格的止损：首月流水不达标即启动退出`
+
+  // Look-alike 提示
+  const similarIndustries: Record<string, string[]> = {
+    '餐饮': ['美容美发', '零售', '服务业'],
+    '零售': ['餐饮', '新消费', '物流'],
+    '教育': ['科技/SaaS', '服务业'],
+    '医疗健康': ['美容美发', '服务业'],
+    '美容美发': ['餐饮', '医疗健康', '服务业'],
+    '科技/SaaS': ['教育', '新消费'],
+    '新消费': ['零售', '餐饮'],
+    '服务业': ['餐饮', '美容美发', '教育'],
+  }
+  const alts = similarIndustries[d.industry] || ['服务业', '零售']
+  const copyHint = pm > 10
+    ? `这个${s.pe.label}项目的物理特征（日流水${dailyFlowK}K / 利润率${pm.toFixed(0)}% / 周转${d.turnoverDays || '—'}天）跟${alts[0]}、${alts[1]}赛道很像——成功了可以复制打法`
+    : `项目利润率偏低，先跑通这个盘口再考虑复制`
+
+  return {
+    verdict,
+    bestStructure,
+    riskAppetite,
+    killSwitch,
+    copyHint,
+    // 数值参数供前端赌局设计器使用（默认值）
+    defaults: {
+      wolfCapital: sugWolf,
+      seniorCapital: sugSenior,
+      leverageRatio,
+      seniorReturn: 12,
+      wolfShare: sugWolfShare,
+      dailyRetainPct: sugRetain,
+      circuitBreakerPct: 40,
+      estIRR: irr,
+      estPaybackMonths: monthsToPay,
+      safetyMargin
+    }
+  }
+}
+
+// ==================== Look-alike 跨行业雷达（mock 数据 + 简单距离排序） ====================
+function buildLookAlike(d: any, s: any): any[] {
+  // 内置项目指纹库
+  const db = [
+    { name: '某连锁美容院', industry: '美容美发', icon: '💇', dailyFlowK: 18, pm: 28, turnover: 5, monthlyRev: 42, employees: 12 },
+    { name: '某社区健身房', industry: '服务业', icon: '🏋️', dailyFlowK: 15, pm: 22, turnover: 10, monthlyRev: 35, employees: 8 },
+    { name: '某连锁快餐品牌', industry: '餐饮', icon: '🍜', dailyFlowK: 25, pm: 20, turnover: 3, monthlyRev: 60, employees: 25 },
+    { name: '某社区生鲜超市', industry: '零售', icon: '🛒', dailyFlowK: 30, pm: 12, turnover: 2, monthlyRev: 75, employees: 15 },
+    { name: '某少儿编程机构', industry: '教育', icon: '👨‍💻', dailyFlowK: 12, pm: 35, turnover: 15, monthlyRev: 28, employees: 10 },
+    { name: '某宠物医院', industry: '医疗健康', icon: '🐾', dailyFlowK: 20, pm: 30, turnover: 7, monthlyRev: 50, employees: 14 },
+    { name: '某汽车养护连锁', industry: '服务业', icon: '🚗', dailyFlowK: 22, pm: 18, turnover: 12, monthlyRev: 55, employees: 18 },
+    { name: '某轻食外卖品牌', industry: '新消费', icon: '🥗', dailyFlowK: 16, pm: 15, turnover: 1, monthlyRev: 40, employees: 6 },
+    { name: '某连锁药房', industry: '医疗健康', icon: '💊', dailyFlowK: 28, pm: 24, turnover: 8, monthlyRev: 68, employees: 20 },
+    { name: '某社区烘焙店', industry: '新消费', icon: '🍰', dailyFlowK: 10, pm: 32, turnover: 2, monthlyRev: 25, employees: 5 },
+  ]
+
+  const myFlow = s.dailyFlowK || 0
+  const myPm = s.pm || 0
+
+  // 简单欧氏距离（归一化）
+  return db
+    .filter(p => p.industry !== d.industry) // 排除同行业
+    .map(p => {
+      const dFlow = (p.dailyFlowK - myFlow) / 30  // 归一化
+      const dPm = (p.pm - myPm) / 40
+      const dist = Math.sqrt(dFlow * dFlow + dPm * dPm)
+      const similarity = Math.max(0, Math.round((1 - dist) * 100))
+      return { ...p, similarity }
+    })
+    .sort((a, b) => b.similarity - a.similarity)
+    .slice(0, 4) // 返回最相似的4个
 }
 
 // Main page

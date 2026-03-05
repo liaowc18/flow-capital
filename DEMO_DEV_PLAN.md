@@ -1,489 +1,674 @@
 # Flow Capital Demo 开发文档
 
-> 版本：v0.2-demo | 更新时间：2026-03-05
+> 版本：v0.3-demo | 更新时间：2026-03-05
 > 定位：**杠杆暴利制造器 / 联营赌局设计器** 的可交互 Demo
+> 仓库：https://github.com/liaowc18/flow-capital
 
 ---
 
 ## 一、产品定位
 
 ### 一句话
+
 **给「狼」（资金端操盘手）用的杠杆工具** —— 让他们能主动设计、模拟并放大非对称收益结构的联营赌局。
 
 ### 不是什么
+
 - 不是「AI 抖音」式的被动推荐引擎
 - 不是帮老板做体检的 FA 工具（那只是底层数据来源）
 - 不是传统 PE/VC 的投后管理系统
 
 ### 核心用户
+
 **狼** —— 用有限自有资金（劣后），撬动大比例外部资金（优先），通过交易结构设计独占绝大部分超额利润的操盘手。
 
+### 解决三个痛点
+
+1. **防止分成扯皮** → 智能合约 & T+0 自动清算（当前 Demo：前端分账模拟表展示）
+2. **合法拿到真实经营数据** → 5% 探针 + AI Agent（当前 Demo：手动填表 + 辅助材料上传）
+3. **标准化复制** → P=MV 模型 + Look-alike（当前 Demo：mock 数据 + 前端欧氏距离匹配）
+
 ---
 
-## 二、现有功能（已完成）
+## 二、技术架构
 
-| 模块 | 状态 | 说明 |
+### 技术栈
+
+| 层级 | 技术 | 说明 |
 |------|------|------|
-| HSR 六维体检引擎 | ✅ 已上线 | 盈利能力/现金质量/增长趋势/规模体量/运营效率/借债风险 |
-| 基因分型系统 | ✅ 已上线 | 10 种基因型（印钞型/激流型/失血型/种子型等），含极端 bad case 处理 |
-| PE 估值区间 | ✅ 已上线 | 三档（保守/中性/乐观），11 个行业 PE 基准 |
-| 老板视角翻译 | ✅ 已上线 | 场景化大白话输出（ownerView） |
-| 定价参数输出 | ✅ 已上线 | 截留比例/回本天数/熔断条件等（pricingInputs，单向输出） |
-| 风控清单 | ✅ 已上线 | 需补材料 + 减缓条款（riskView） |
-| 辅助材料上传 | ✅ 已上线 | 拖拽上传，CSV/TXT 自动提取文本供 LLM 分析 |
-| 项目推荐卡片流 | ✅ 已上线 | 7 个 mock 项目，含视频/筛选/详情 |
-| LLM 分析师接口 | 🟡 代码就绪 | API Key 过期，降级到本地引擎 |
+| 前端 | Vanilla JS + Tailwind CSS (CDN) | 单文件 `app.js`，2820 行 |
+| 后端 | Hono + TypeScript | Cloudflare Workers 边缘运行时，`src/index.tsx`，1075 行 |
+| 构建 | Vite + @hono/vite-cloudflare-pages | 输出 `dist/` 目录 |
+| 部署 | Cloudflare Pages | `wrangler pages deploy dist` |
+| AI 引擎 | OpenAI 兼容 API（可选） | 降级到本地 HSR 引擎 |
+| 进程管理 | PM2 | `ecosystem.config.cjs` |
+
+### 项目目录结构
+
+```
+webapp/
+├── src/
+│   └── index.tsx              # 后端入口（Hono 路由 + HSR 估值引擎 + wolfView + lookAlike）
+├── public/
+│   └── static/
+│       ├── app.js             # 前端主逻辑（所有页面渲染 + 交互）
+│       └── styles.css         # 自定义 CSS 样式
+├── dist/                      # 构建输出（wrangler 部署用）
+│   ├── _worker.js             # 编译后的 Hono 应用
+│   └── static/
+│       ├── app.js
+│       └── styles.css
+├── ecosystem.config.cjs       # PM2 配置
+├── vite.config.ts             # Vite 构建配置
+├── wrangler.jsonc             # Cloudflare Workers 配置
+├── tsconfig.json              # TypeScript 配置
+├── package.json               # 依赖与脚本
+├── DEMO_DEV_PLAN.md           # 本文档
+└── README.md                  # 项目说明
+```
+
+### API 路由
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| GET | `/` | 主页 HTML（加载 app.js） |
+| GET | `/static/*` | 静态资源 |
+| POST | `/api/valuation` | 估值分析（LLM 优先 → 本地引擎降级） |
 
 ---
 
-## 三、Demo 新增功能规划
+## 三、功能模块总览
 
-### 模块总览
+### 当前已实现模块
 
 ```
-┌─────────────────────────────────────────────────────┐
-│                  Flow Capital Demo                   │
-├─────────────┬───────────────────────────────────────┤
-│  已有        │  新增（Demo 级）                        │
-├─────────────┼───────────────────────────────────────┤
-│ 六维体检     │  M1. 赌局设计器（动态非对称定价计算器）    │
-│ 基因分型     │  M2. T+0 分账模拟器（逐月分账表）         │
-│ 估值区间     │  M3. 狼视角面板（wolfView）              │
-│ 老板视角     │  M4. Look-alike 跨行业雷达              │
-│ 风控清单     │  M5. 赌局方案导出（一页纸）               │
-│ 材料上传     │                                        │
-└─────────────┴───────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────┐
+│                   Flow Capital Demo v0.3                      │
+├──────────────────────┬───────────────────────────────────────┤
+│  底层数据引擎          │  交互功能层                            │
+├──────────────────────┼───────────────────────────────────────┤
+│ ✅ HSR 六维体检引擎    │  ✅ M1. 🎰 赌局设计器（6滑块+实时IRR）  │
+│ ✅ 基因分型（10种）    │  ✅ M2. 💸 T+0 分账模拟器（逐月表）     │
+│ ✅ PE 估值区间        │  ✅ M3. 🐺 狼视角面板（wolfView）      │
+│ ✅ 老板视角翻译       │  ✅ M4. 🔭 Look-alike 雷达（mock）     │
+│ ✅ 定价参数输出       │  ✅ M5. 📜 联营方案导出（一页纸TXT）    │
+│ ✅ 风控清单          │  ✅ M6. 📄 HSR体检报告导出（TXT）       │
+│ ✅ 辅助材料上传       │  ✅ M7. 项目推荐卡片流（7个mock）       │
+│ ✅ 异常指标检测       │  ✅ M8. AI筛选面板（NLP解析示例）       │
+│ ✅ 结构化行动建议     │                                       │
+│ 🟡 LLM 分析师接口    │                                       │
+│   （代码就绪,key过期）│                                       │
+└──────────────────────┴───────────────────────────────────────┘
+```
+
+### 估值结果页面结构（纵向滚动）
+
+```
+估值结果页
+├── 1.  综合评分卡片（分数/等级/基因型/描述）
+├── 2.  👔 老板视角翻译面板（ownerView）
+├── 3.  💰 估值参考区间（保守/中性/乐观）
+├── 4.  📊 六维体检进度条（6维度得分+verdict）
+├── 5.  ⚠️ 异常指标Flag（偏离行业基准）
+├── 6.  🎯 造局参数建议（PE/出让/交易结构/关键条件）
+├── 7.  📐 定价参数（风险等级/违约概率/回本天数...）
+├── 8.  📋 评估报告（一句话/优势/风险/建议/投资人话术）
+├── 9.  ✅ 行动清单（红黄绿优先级）
+├── 10. 🛡️ 风控清单（补充材料+减缓条款）
+├── 11. 🐺 狼视角面板（verdict/结构/杠杆/安全垫/IRR/熔断/复制提示）
+├── 12. 🎰 赌局设计器（6滑块实时计算 → 三档IRR + 极端风险）
+├── 13. 💸 T+0 分账模拟表（可展开，逐月12行）
+├── 14. 🔭 Look-alike 雷达（4个跨行业相似项目）
+└── 15. [重新评估] [导出报告] [导出方案] 操作栏
 ```
 
 ---
 
-### M1. 赌局设计器（动态非对称定价计算器）⭐ 核心
+## 四、模块详细设计
 
-> **位置**：估值结果页下方，六维体检之后
-> **性质**：纯前端实时计算，不需要后端接口
-> **目的**：狼在上面拉滑块设计自己的交易结构，实时看到收益/风险变化
+### M1. 🎰 赌局设计器（动态非对称定价计算器）⭐ 核心
 
-#### 交互设计
+> **位置**：`renderDealDesigner(r)` (app.js:2305) + `calcDealDesigner()` (app.js:2364)
+> **性质**：纯前端实时计算，不依赖后端
+> **目的**：狼拖滑块设计交易结构，实时看到收益/风险变化
 
-```
-┌────────────────────────────────────────┐
-│  🎰 造局设计器 — 设计你的赌局           │
-├────────────────────────────────────────┤
-│                                        │
-│  我出多少（劣后资金）                    │
-│  ├── [====●===========] 20万            │
-│  │   范围：5万 ~ 100万                  │
-│                                        │
-│  拉多少优先资金                          │
-│  ├── [============●===] 80万            │
-│  │   杠杆比：1:4  总盘口：100万          │
-│                                        │
-│  优先资金保底回报                        │
-│  ├── [=====●==========] 年化12%         │
-│                                        │
-│  超额利润我分多少                        │
-│  ├── [=================●] 92%           │
-│  │   优先方分 8%                         │
-│                                        │
-│  日流水截留比例                          │
-│  ├── [======●=========] 15%             │
-│                                        │
-│  月营收跌多少触发熔断                    │
-│  ├── [=========●======] -40%            │
-│                                        │
-├────────────────────────────────────────┤
-│  📊 收益场景模拟（实时计算）             │
-│                                        │
-│  ┌──────┬──────┬──────┐               │
-│  │ 保守  │ 中性  │ 乐观  │               │
-│  ├──────┼──────┼──────┤               │
-│  │IRR 38%│IRR 67%│IRR142%│              │
-│  │287天  │173天  │ 96天  │               │
-│  │回本   │回本   │回本    │              │
-│  └──────┴──────┴──────┘               │
-│                                        │
-│  🛡️ 安全垫：80%（优先资金亏完狼才亏）   │
-│  ⚡ 杠杆放大：5x                        │
-│  💰 狼的最大年化收益：142%               │
-│  ⚠️ 极端风险：月流水跌50%→回本延至411天  │
-│                                        │
-└────────────────────────────────────────┘
-```
+#### 6 个滑块参数
 
-#### 计算公式（Demo 级简化）
+| 滑块ID | 标签 | 默认值来源 | 范围 | 步长 |
+|--------|------|-----------|------|------|
+| `dd-wolf` | 我出多少（劣后） | `wolfView.defaults.wolfCapital` | 5~200万 | 5 |
+| `dd-senior` | 拉多少优先资金 | `wolfView.defaults.seniorCapital` | 0~500万 | 10 |
+| `dd-senior-ret` | 优先方保底年化 | 12% | 6~24% | 1 |
+| `dd-wolf-share` | 超额利润我分 | `wolfView.defaults.wolfShare` | 50~98% | 1 |
+| `dd-retain` | 日流水截留 | `wolfView.defaults.dailyRetainPct` | 5~40% | 1 |
+| `dd-circuit` | 月营收跌多少熔断 | 40% | 20~60% | 5 |
+
+#### 核心计算公式
 
 ```javascript
-// 核心参数
-const wolfCapital = 20        // 狼出资（万）
-const seniorCapital = 80      // 优先资金（万）
-const totalPool = wolfCapital + seniorCapital  // 总盘口
-const leverage = totalPool / wolfCapital       // 杠杆倍数
-const seniorReturn = 0.12     // 优先方保底年化
-const wolfShare = 0.92        // 狼的超额分成比例
-const dailyRetain = 0.15      // 日流水截留比例
-const circuitBreaker = -0.40  // 熔断线
+// 从六维体检拿基准数据
+const baseDaily = pricingInputs.baselineDailyRevenue  // 日均流水
+const pm = (revenue - cost) / revenue * 100            // 利润率%
 
-// 从六维体检结果拿数据
-const dailyRevenue = result.pricingInputs.baselineDailyRevenue  // 基准日流水
-const profitMargin = formData.profitMargin  // 利润率
+// 三档场景（保守×0.7 / 中性×1.0 / 乐观×1.3）
+for each scenario:
+  adjDaily = baseDaily × factor
+  monthRetain = adjDaily × (retain/100) × 30           // 月截留额
+  seniorTotal = senior × 10000 × (1 + seniorRet/100)   // 优先待收（本+息）
+  monthsToPay = ceil(seniorTotal / monthRetain)         // 几个月还完优先
+  paybackDays = monthsToPay × 30
+  remainMonths = max(0, 12 - monthsToPay)              // 剩余分利月
+  monthlyProfit = adjDaily × (pm/100) × 30 / 10000     // 月利润（万）
+  wolfProfit = monthlyProfit × remainMonths × (wolfShare/100)
+  IRR = wolfProfit / wolfCapital × 100%
 
-// 月截留额
-const monthlyRetain = dailyRevenue * dailyRetain * 30
-
-// 优先方需要回收的总额（本金+保底回报，按1年算）
-const seniorTotal = seniorCapital * (1 + seniorReturn)
-
-// 回本天数（三档场景）
-// 保守：日流水打7折
-// 中性：日流水不变
-// 乐观：日流水 × 1.3
-const scenarios = {
-  conservative: { factor: 0.7, label: '保守' },
-  neutral:      { factor: 1.0, label: '中性' },
-  optimistic:   { factor: 1.3, label: '乐观' }
-}
-
-for (const [key, s] of Object.entries(scenarios)) {
-  const adjDaily = dailyRevenue * s.factor
-  const monthRetain = adjDaily * dailyRetain * 30
-  // 还完优先本息需要多少个月
-  const monthsToPaySenior = Math.ceil(seniorTotal * 10000 / monthRetain)
-  s.paybackDays = monthsToPaySenior * 30
-  // 还完优先后，剩余月份的超额利润（按12个月总周期算）
-  const remainMonths = Math.max(0, 12 - monthsToPaySenior)
-  const monthlyProfit = adjDaily * profitMargin * 30 / 10000  // 月净利润（万）
-  const excessProfit = monthlyProfit * remainMonths
-  const wolfProfit = excessProfit * wolfShare
-  s.irr = wolfCapital > 0 ? Math.round(wolfProfit / wolfCapital * 100) : 0
-}
-
-// 安全垫 = 优先资金 / 总盘口
-const safetyMargin = Math.round(seniorCapital / totalPool * 100)
+// 极端风险：流水跌50%时的回本天数
 ```
+
+#### 输出区域
+
+- 核心指标栏：总盘口 / 杠杆倍数 / 安全垫
+- 三档场景卡片：保守IRR / 中性IRR / 乐观IRR + 各自回本天数
+- 极端风险提示：流水跌50%时的回本延长
+- 分账规则说明文字
+- 「查看逐月分账模拟表」展开按钮
 
 ---
 
-### M2. T+0 分账模拟器
+### M2. 💸 T+0 分账模拟器
 
-> **位置**：赌局设计器下方，可展开/折叠
+> **位置**：`updateSettlementTable()` (app.js:2464)
 > **性质**：前端根据 M1 参数生成逐月表格
-> **目的**：一目了然看到钱怎么流——什么时候回本、什么时候开始暴赚
+> **触发**：点击「查看逐月分账模拟表」按钮，或拖动滑块自动更新
 
-#### 交互设计
+#### 表格结构
 
-```
-┌─────────────────────────────────────────────────┐
-│  💸 T+0 分账模拟（逐月）                          │
-├─────┬──────┬──────┬──────┬──────┬──────┬──────┤
-│ 月份 │日均流水│月截留额│累计还优先│优先剩余│超额利润│ 狼分得 │
-├─────┼──────┼──────┼──────┼──────┼──────┼──────┤
-│  1  │2.1万  │9,450 │9,450 │80.6万│  —   │  —   │
-│  2  │2.1万  │9,450 │1.89万│79.5万│  —   │  —   │
-│ ... │      │      │      │      │      │      │
-│  9  │2.3万  │10.4K │86.7万│  0   │3,300 │3,036 │ ← 开始暴赚
-│ 10  │2.5万  │11.3K │  —   │  —   │7,200 │6,624 │
-│ 11  │2.5万  │11.3K │  —   │  —   │7,200 │6,624 │
-│ 12  │2.5万  │11.3K │  —   │  —   │7,200 │6,624 │
-├─────┴──────┴──────┴──────┴──────┴──────┴──────┤
-│ 📊 12个月总结：                                  │
-│    狼投入 20万 → 净赚 16.3万 → IRR 81.5%         │
-│    优先方投入 80万 → 净赚 9.6万 → 年化 12%        │
-└─────────────────────────────────────────────────┘
-```
+| 月 | 日均流水 | 月截留 | 优先剩余 | 超额利润 | 🐺 狼分得 |
+|----|---------|--------|---------|---------|----------|
+| 1  | 2.1K   | 0.95万  | 80.6万  | —       | —        |
+| ... | ...   | ...    | ...     | ...     | ...      |
+| 9  | 2.3K   | 1.04万  | 0       | 0.33万   | 0.30万   |
+| 12 | 2.5K   | 1.13万  | 已清    | 0.72万   | 0.66万   |
 
-#### 实现方式
+#### 逻辑要点
 
-- 纯前端 JS 循环 12 个月
-- 每月日均流水加一个小幅随机波动（±5%），模拟真实感
-- 月增长率取自六维体检的 growthRate
-- 用 HTML table + Tailwind 渲染，关键行（回本月）高亮
+- 月增长：`baseDaily × (1 + growthRate/12 × month)`
+- 波动模拟：`× (0.95 + sin(month × 1.7) × 0.05)`
+- 还本期：截留优先还本付息；分利期：超额按比例分
+- 回本月高亮（绿色背景）
+- 底部汇总：狼投入 / 12月净赚 / 年化IRR
+- 回本/未回本状态提示
 
 ---
 
-### M3. 狼视角面板（wolfView）
+### M3. 🐺 狼视角面板
 
-> **位置**：老板视角（ownerView）下方，平级展示
-> **性质**：后端 localValuationEngine 新增 wolfView 字段输出
-> **目的**：用狼听得懂的话告诉他"这个盘口值不值得做、怎么做"
+> **位置**：前端 `renderWolfViewSection(r)` (app.js:2247) + 后端 `buildWolfView()` (index.tsx:884)
+> **数据来源**：后端 localValuationEngine 返回的 `wolfView` 字段
 
 #### 数据结构
 
-```json
-{
-  "wolfView": {
-    "verdict": "这个盘口值得做——利润率25%日流水稳，用1:4杠杆撬，保守IRR也有38%",
-    "bestStructure": "建议20万劣后+80万优先，截留15%，中性场景6个月回本后吃92%超额",
-    "riskAppetite": "中等偏激进——安全垫80%够厚，但增长率一般，别超1:5杠杆",
-    "killSwitch": "月流水跌破1.5万/天连续2个月，立刻触发回购，别犹豫",
-    "copyHint": "这个餐饮项目跟美容美发赛道物理特征很像——可以复制打法"
+```typescript
+interface WolfView {
+  verdict: string           // 核心判断（值不值得做，一段话）
+  bestStructure: string     // 推荐交易结构（具体数字）
+  riskAppetite: string      // 风险偏好建议
+  killSwitch: string        // 熔断条件
+  copyHint: string          // Look-alike 复制提示
+  defaults: {               // 赌局设计器默认值
+    wolfCapital: number     // 建议劣后出资（万）
+    seniorCapital: number   // 建议优先资金（万）
+    leverageRatio: string   // 建议杠杆比（如"1:4"）
+    seniorReturn: number    // 优先保底年化%
+    wolfShare: number       // 超额分成%
+    dailyRetainPct: number  // 截留比例%
+    circuitBreakerPct: number
+    estIRR: number          // 预估IRR%
+    estPaybackMonths: number
+    safetyMargin: number    // 安全垫%
   }
 }
 ```
 
-#### 生成逻辑（Demo 级）
-
-```javascript
-function buildWolfView(d, scores) {
-  const pm = scores.pm
-  const dailyFlow = d.dailyCashFlow
-  const leverage = pm > 20 ? '1:4' : pm > 10 ? '1:3' : '1:2'
-  const irr = pm > 20 ? '38~142%' : pm > 10 ? '20~80%' : '10~40%'
-
-  let verdict
-  if (pm > 20 && scores.cashScore > 70) {
-    verdict = `肥肉——利润率${pm.toFixed(0)}%日流水${(dailyFlow/1000).toFixed(1)}K，用${leverage}杠杆撬，保守IRR ${irr}`
-  } else if (pm > 10) {
-    verdict = `能做——利润率${pm.toFixed(0)}%还行，但杠杆别拉太高，控制在${leverage}`
-  } else if (pm > 0) {
-    verdict = `鸡肋——利润率太薄，做的话杠杆要压低（${leverage}），不然翻车概率高`
-  } else {
-    verdict = `别碰——在亏钱的项目做杠杆等于加速死亡`
-  }
-
-  return { verdict, bestStructure, riskAppetite, killSwitch, copyHint }
-}
-```
-
----
-
-### M4. Look-alike 跨行业雷达
-
-> **位置**：狼视角面板下方
-> **性质**：纯前端 mock 数据，展示 UI 交互形态
-> **目的**：展示"成功模式可复制"的产品概念
-
-#### 交互设计
+#### 前端面板布局
 
 ```
 ┌────────────────────────────────────────┐
-│  🔭 Look-alike 雷达 — 找到下一个猎物    │
-│                                        │
-│  当前项目指纹：                          │
-│  日流水 2万 | 利润率 25% | 周转 7天      │
-│                                        │
-│  物理特征相似的项目（跨行业）：            │
-│                                        │
-│  ┌──────────────────────────────┐     │
-│  │ 🏪 某连锁美容院     相似度 91%  │     │
-│  │ 日流水 1.8万 | 利润率 28%      │     │
-│  │ 周转 5天 | 规模 42万/月        │     │
-│  │ [查看详情] [一键套用赌局模板]    │     │
-│  └──────────────────────────────┘     │
-│                                        │
-│  ┌──────────────────────────────┐     │
-│  │ 🧖 某社区健身房     相似度 85%  │     │
-│  │ 日流水 1.5万 | 利润率 22%      │     │
-│  │ 周转 10天 | 规模 35万/月       │     │
-│  │ [查看详情] [一键套用赌局模板]    │     │
-│  └──────────────────────────────┘     │
-│                                        │
-│  ┌──────────────────────────────┐     │
-│  │ 🍜 某连锁快餐品牌   相似度 79%  │     │
-│  │ 日流水 2.5万 | 利润率 20%      │     │
-│  │ 周转 3天 | 规模 60万/月        │     │
-│  │ [查看详情] [一键套用赌局模板]    │     │
-│  └──────────────────────────────┘     │
-│                                        │
-│  📡 基于 P=MV 标准化模型自动匹配          │
-│     覆盖 12 个行业 · 实时更新             │
+│ 🐺 狼视角 — 这个盘口值不值得做          │
+│    「资金端操盘手专用」                   │
+├────────────────────────────────────────┤
+│ 🎯 核心判断（verdict）                   │
+│ ♟️ 推荐结构（bestStructure）             │
+│ [杠杆比] [安全垫] [预估IRR] ← 三栏数据   │
+│ 🏎️ 风险偏好（riskAppetite）             │
+│ ⏸ 熔断开关（killSwitch）                │
+│ 📋 复制提示（copyHint）                  │
 └────────────────────────────────────────┘
 ```
 
-#### 实现方式
-
-- Mock 数据数组：预置 8~10 个跨行业项目指纹
-- 相似度算法：六维向量欧氏距离（Demo 级，前端简单算）
-- "一键套用赌局模板"：把当前赌局设计器的参数直接填入新项目（Toast 提示"已套用"）
-
----
-
-### M5. 赌局方案导出（一页纸）
-
-> **位置**：赌局设计器底部，导出按钮
-> **性质**：生成 TXT 文件下载
-> **目的**：狼拿着这张纸去跟优先资金方/项目方谈
-
-#### 导出内容
+#### 后端生成逻辑（Demo 级）
 
 ```
-═══════════════════════════════════════
-  Flow Capital 联营方案书（一页纸）
-═══════════════════════════════════════
+if pm <= 0       → "别碰——项目在亏钱"
+if pm < 8        → "鸡肋盘——利润太薄"
+if pm < 15       → "能做但别贪"
+if pm < 25       → "好盘口"
+if pm >= 25      → "肥肉——赶紧锁"
 
-项目：王姐湘菜馆 | 赛道：餐饮 | 基因：激流型
+杠杆比推荐：
+  pm>25 且 cashScore>70 → 1:4
+  pm>15 且 cashScore>60 → 1:3
+  pm>8               → 1:2
+  pm>0               → 1:1
+  pm<=0              → 不建议
 
-─── 项目体检摘要 ───
-综合评分：79/100（A级）
-日流水：5.1K | 利润率：25% | 周转：7天
-一句话：年利润46万，基本面扎实
-
-─── 交易结构设计 ───
-总盘口：100万
-├── 劣后资金（操盘方）：20万（20%）
-└── 优先资金（资方）：80万（80%）
-杠杆倍数：5x
-
-优先方条件：
-├── 保底年化：12%
-├── 日流水截留还款：15%
-└── 预计回本周期：6~9个月
-
-超额利润分配：
-├── 操盘方（劣后）：92%
-└── 资方（优先）：8%
-
-─── 收益预测 ───
-          保守    中性    乐观
-操盘方IRR  38%    67%    142%
-回本天数   287天  173天   96天
-12月净利润  7.6万  13.4万  28.4万
-
-─── 风控条件 ───
-熔断线：月营收连续2个月下降超过40%触发回购
-安全垫：80%（优先资金全部亏完，操盘方才开始承担损失）
-监控频率：月度
-必备材料：银行流水 / 损益表 / 租赁合同
-
-─── 分账规则 ───
-阶段一（还本期）：日流水 × 15% 截留 → 优先还本付息
-阶段二（分利期）：超额利润 92% 归操盘方，8% 归优先方
-结算方式：T+0 自动清算（系统自动扣款分账）
-
-  由 Flow Capital HSR 引擎生成
-  生成时间：2026-03-05
-═══════════════════════════════════════
+劣后出资 = neutralVal × (pm>20 ? 8% : pm>10 ? 12% : 15%)
+优先资金 = 劣后 × 杠杆倍数
+截留比例 = pm>20 ? 15% : pm>10 ? 20% : 25%
+超额分成 = pm>20 ? 92% : pm>15 ? 88% : pm>8 ? 82% : 70%
 ```
 
 ---
 
-## 四、页面结构与导航调整
+### M4. 🔭 Look-alike 跨行业雷达
 
-### 当前导航栏
+> **位置**：前端 `renderLookAlikeSection(r)` (app.js:2559) + 后端 `buildLookAlike()` (index.tsx:987)
 
-```
-发现 | 我的项目 | [+发布] | 消息 | 我的
-```
+#### 内置项目指纹库（10 个 Mock 项目）
 
-### Demo 调整建议（不改导航，改入口路径）
+| 项目 | 行业 | 日流水K | 利润率% | 周转天 | 月营收万 | 员工 |
+|------|------|--------|--------|--------|---------|------|
+| 某连锁美容院 | 美容美发 | 18 | 28 | 5 | 42 | 12 |
+| 某社区健身房 | 服务业 | 15 | 22 | 10 | 35 | 8 |
+| 某连锁快餐品牌 | 餐饮 | 25 | 20 | 3 | 60 | 25 |
+| 某社区生鲜超市 | 零售 | 30 | 12 | 2 | 75 | 15 |
+| 某少儿编程机构 | 教育 | 12 | 35 | 15 | 28 | 10 |
+| 某宠物医院 | 医疗健康 | 20 | 30 | 7 | 50 | 14 |
+| 某汽车养护连锁 | 服务业 | 22 | 18 | 12 | 55 | 18 |
+| 某轻食外卖品牌 | 新消费 | 16 | 15 | 1 | 40 | 6 |
+| 某连锁药房 | 医疗健康 | 28 | 24 | 8 | 68 | 20 |
+| 某社区烘焙店 | 新消费 | 10 | 32 | 2 | 25 | 5 |
 
-- **估值入口**（首页右上角计算器图标） → 进入「HSR 六维体检」
-- 体检完成后 → 结果页自动衔接「赌局设计器」
-- 设计器下方 → T+0 分账表 → 狼视角 → Look-alike 雷达
-- **整个流程是一个纵向长页面，从体检到造局一气呵成**
-
-```
-估值结果页（纵向滚动）
-├── 1. 综合评分卡片（已有）
-├── 2. 老板视角（已有）
-├── 3. 估值区间（已有）
-├── 4. 六维体检（已有）
-├── 5. 异常指标（已有）
-├── 6. 行动建议（已有）
-├── ─── 以下为新增 ───
-├── 7. 🐺 狼视角面板（M3）
-├── 8. 🎰 赌局设计器（M1）← 核心交互
-├── 9. 💸 T+0 分账模拟（M2）
-├── 10. 🔭 Look-alike 雷达（M4）
-├── 11. [导出赌局方案] [导出体检报告]（M5）
-└── 12. 定价参数 + 风控清单（已有，移到底部）
-```
-
----
-
-## 五、技术实现要点
-
-### 前端（public/static/app.js）
-
-| 新增 | 实现方式 | 复杂度 |
-|------|---------|--------|
-| 赌局设计器 UI | 6 个 range 滑块 + oninput 实时计算 | 中 |
-| 收益场景卡片 | 三栏 grid，数字随滑块动态刷新 | 低 |
-| T+0 分账表 | JS 循环 12 个月 → HTML table | 低 |
-| 狼视角面板 | 类似 ownerView 的卡片渲染 | 低 |
-| Look-alike 列表 | Mock 数据 + 简单距离排序 | 低 |
-| 赌局方案导出 | 拼接 TXT 字符串 → Blob 下载 | 低 |
-
-### 后端（src/index.tsx）
-
-| 新增 | 实现方式 | 复杂度 |
-|------|---------|--------|
-| wolfView 字段 | localValuationEngine 新增 buildWolfView 函数 | 低 |
-| lookAlike mock 数据 | 返回固定数组 + 简单距离排序 | 低 |
-
-### 不需要动的
-
-- 六维体检引擎逻辑
-- 基因分型系统
-- 估值区间计算
-- LLM 调用接口
-- 文件上传功能
-
----
-
-## 六、Mock 数据清单
-
-### Look-alike 项目库（前端内置）
+#### 匹配算法（Demo 级简化）
 
 ```javascript
-const lookAlikeDB = [
-  { name: '某连锁美容院', industry: '美容美发', icon: '🏪', dailyFlow: 18000, pm: 28, turnover: 5, monthlyRev: 42 },
-  { name: '某社区健身房', industry: '服务业', icon: '🧖', dailyFlow: 15000, pm: 22, turnover: 10, monthlyRev: 35 },
-  { name: '某连锁快餐品牌', industry: '餐饮', icon: '🍜', dailyFlow: 25000, pm: 20, turnover: 3, monthlyRev: 60 },
-  { name: '某社区生鲜超市', industry: '零售', icon: '🛒', dailyFlow: 30000, pm: 12, turnover: 2, monthlyRev: 75 },
-  { name: '某少儿编程机构', industry: '教育', icon: '👨‍💻', dailyFlow: 12000, pm: 35, turnover: 15, monthlyRev: 28 },
-  { name: '某宠物医院', industry: '医疗健康', icon: '🐾', dailyFlow: 20000, pm: 30, turnover: 7, monthlyRev: 50 },
-  { name: '某汽车养护连锁', industry: '服务业', icon: '🚗', dailyFlow: 22000, pm: 18, turnover: 12, monthlyRev: 55 },
-  { name: '某轻食外卖品牌', industry: '新消费', icon: '🥗', dailyFlow: 16000, pm: 15, turnover: 1, monthlyRev: 40 },
-]
+// 欧氏距离（归一化：流水÷30, 利润率÷40）
+distance = sqrt((ΔdailyFlowK/30)² + (Δpm/40)²)
+similarity = max(0, round((1 - distance) × 100))
+
+// 排除同行业，按相似度降序取 Top 4
+```
+
+#### 交互
+
+- 每个 Look-alike 卡片显示：icon、名称、行业、相似度%、日流水/利润率/月营收
+- 「一键套用赌局模板」按钮 → 当前 Demo 仅 Toast 提示
+
+---
+
+### M5. 📜 联营方案导出
+
+> **位置**：`exportDealPlan()` (app.js:2598)
+> **输出**：TXT 文件下载
+
+#### 导出内容结构
+
+```
+═══ Flow Capital 联营方案书（一页纸）═══
+
+项目：xxx | 赛道：xxx | 基因：xxx
+生成时间：2026-03-05
+
+─── 项目体检摘要 ───
+综合评分 / 日流水 / 一句话
+
+─── 交易结构设计 ───
+总盘口 / 劣后 vs 优先 / 杠杆倍数
+
+优先方条件：
+保底年化 / 截留还款 / 回本周期
+
+超额利润分配：
+操盘方分成 / 资方分成
+
+─── 收益预测（中性）───
+IRR / 安全垫
+
+─── 风控条件 ───
+熔断线 / 安全垫 / 监控频率
+
+─── 分账规则 ───
+还本期 → 分利期 → T+0 清算
+
+─── 狼视角判断 ───
+verdict
+
+═══ 由 Flow Capital HSR 引擎生成 ═══
 ```
 
 ---
 
-## 七、从 Demo 到生产的升级路径
+### 后端引擎：HSR 六维体检系统
 
-| Demo 阶段 | 生产阶段 |
-|-----------|---------|
-| 本地引擎硬编码公式 | LLM + 超级提示词多 Agent 推演 |
-| 前端简单 IRR 公式 | 后端蒙特卡洛模拟 + 概率分布 |
-| Mock Look-alike 数据 | D1 数据库项目指纹库 + 余弦相似度 |
-| TXT 导出 | PDF 导出（带图表） |
-| 手动填表 | 5% 探针 + 微信群智能体自动采集 |
-| 单机计算 | T+0 智能合约链上清算 |
-| 静态分账表 | 实时对接银行流水 API 自动分账 |
+> **位置**：`localValuationEngine()` (index.tsx:269~674)
+
+#### 六维打分体系
+
+| 维度 | 权重 | 核心指标 | 打分逻辑 |
+|------|------|---------|---------|
+| 盈利能力 | 25% | 利润率 pm% | pm≥30→85+, pm≥15→65+, pm≥5→40+, pm≥0→20+, pm<0→3~15 |
+| 现金质量 | 20% | 周转天数/退款率/日流水 | 周转≤7→90, ≤15→78, ≤30→65; 退款率每1%扣2分 |
+| 增长趋势 | 20% | 增长率 | ≥50%→95, ≥30%→85, ≥15%→72, ≥8%→60 |
+| 规模体量 | 10% | 年营收(万)/员工数 | 基础分 + 营收加成 + 员工加成 |
+| 运营效率 | 15% | 利润率/周转/人效 | 基础60, 亏损扣分, 利润高加分, 人效加分 |
+| 借债风险 | 10% | 负债率 | <20%→92, <40%→78, <60%→58, <80%→38, else→20 |
+
+#### 基因分型（10 种）
+
+| 优先级 | 基因型 | 触发条件 |
+|--------|--------|---------|
+| 1 | 种子型 | 零营收 + 有成本 |
+| 2 | 失血型 | pm < -100% |
+| 3 | 溺水型 | pm < -30% |
+| 4 | 输血型 | pm < 0% |
+| 5 | 泡沫型 | pm < 3% 且营收>100万 |
+| 6 | 高杠杆型 | debtScore < 20 |
+| 7 | 印钞型 | pm>25 且 cashScore>80 且 growthScore<60 |
+| 8 | 烧钱型 | growthScore>80 且 pm<10 |
+| 9 | 激流型 | pm>15 且 growthScore>65 且 cashScore>70 |
+| 10 | 稳盘型 | scaleScore>75 且 pm>15 且 growthScore<50 |
+| 11 | 潜力型 | growthScore>70 且 pm>15 |
+| default | 蛰伏型 | 以上均不满足 |
+
+#### 行业 PE 基准库
+
+| 行业 | PE Low | PE Mid | PE High |
+|------|--------|--------|---------|
+| 餐饮 | 5 | 8 | 12 |
+| 零售 | 6 | 10 | 15 |
+| 教育 | 8 | 12 | 18 |
+| 医疗健康 | 12 | 18 | 25 |
+| 美容美发 | 4 | 7 | 10 |
+| 物流 | 6 | 9 | 13 |
+| 制造业 | 5 | 8 | 12 |
+| 科技/SaaS | 15 | 25 | 40 |
+| 新消费 | 8 | 15 | 22 |
+| 新能源 | 12 | 20 | 30 |
+| 服务业 | 5 | 8 | 12 |
+
+#### 完整返回数据结构
+
+```typescript
+interface ValuationResult {
+  score: number              // 综合分 0~100
+  grade: 'S'|'A'|'B'|'C'|'D'
+  archetype: string          // 基因型名
+  archetypeDesc: string      // 基因型描述
+  valuation: {
+    conservative: number     // 保守估值（万）
+    neutral: number
+    optimistic: number
+    method: string           // 估值方法描述
+    confidence: number       // 置信度 0~85
+  }
+  dimensions: {              // 六维得分
+    profitability: { score, verdict, confidence }
+    cashQuality: { score, verdict, confidence }
+    growthTrend: { score, verdict, confidence }
+    scaleVolume: { score, verdict, confidence }
+    operationEfficiency: { score, verdict, confidence }
+    debtRisk: { score, verdict, confidence }
+  }
+  anomalies: Array<{ field, value, benchmark, deviation, severity, impact }>
+  dealParams: { suggestedPE, suggestedStake, dealStructure, keyCondition }
+  pricingInputs: { deathProb, paybackDays, baselineDailyRevenue, priorityRatio, upsideMultiplier, regimeTier, monitorFreq, circuitBreaker }
+  ownerView: { lines: Array<{label, value, note, sentiment}>, valSummary, typeSummary, score }
+  riskView: { requiredDocs: string[], mitigations: Array<{text, priority}> }
+  report: { oneLiner, strengths: string[], risks: string[], actionPlan, investorPitch }
+  actionItems: Array<{ priority: 'red'|'yellow'|'green', text: string }>
+  wolfView: WolfView         // 狼视角
+  lookAlike: LookAlikeItem[] // 相似项目
+  _attachments?: Array<{ name, type, size }>  // 辅助材料元信息
+}
+```
 
 ---
 
-## 八、文件变更清单（预估）
+## 五、前端页面导航
+
+### 页面列表
+
+| 页面 | 入口 | 说明 |
+|------|------|------|
+| `page-home` | 底部导航「发现」 | 首页项目推荐卡片流 |
+| `page-detail` | 点击项目卡片 | 项目详情页 |
+| `page-my-projects` | 底部导航「我的项目」 | 用户发布的项目 |
+| `page-publish` | 底部导航「+发布」 | 发布新项目表单 |
+| `page-messages` | 底部导航「消息」 | 消息列表（Demo） |
+| `page-profile` | 底部导航「我的」 | 个人中心（Demo） |
+| `page-valuation` | 首页右上角计算器图标 | HSR 六维体检 + 赌局设计器 |
+
+### 估值页完整交互流
 
 ```
-修改：
-├── public/static/app.js     +400~500 行（赌局设计器 UI + 分账表 + Look-alike）
-├── src/index.tsx             +60~80 行（wolfView + lookAlike 字段）
-├── dist/_worker.js           （构建自动生成）
-└── dist/static/app.js        （构建自动生成）
-
-不动：
-├── src/renderer.tsx
-├── public/static/styles.css（Tailwind CDN 足够）
-├── vite.config.ts
-├── wrangler.jsonc
-└── ecosystem.config.cjs
+用户点击计算器图标
+  → 进入估值表单页
+    → 填写企业基本信息（名称/行业/营收/成本...）
+    → 可选：展开"更多字段"
+    → 可选：上传辅助材料（拖拽/点击）
+    → 点击"开始六维体检"
+      → 显示加载动画（7 段文案轮播）
+      → POST /api/valuation
+        → 后端：LLM 尝试 → 本地引擎降级
+      → 返回结果
+        → 渲染 15 个结果面板（纵向滚动）
+        → 赌局设计器滑块可拖动 → 实时刷新 IRR/分账表
+        → 点击"查看逐月分账表"展开
+        → 点击"导出报告" / "导出方案"下载 TXT
 ```
 
 ---
 
-## 九、开发顺序
+## 六、样式系统
+
+### 主色调（金融风格）
+
+```javascript
+colors: {
+  primary: '#0F2557',    // 深蓝主色
+  secondary: '#1E40AF',  // 中蓝辅色
+  accent: '#D4AF37',     // 金色点缀
+  success: '#059669',    // 绿色（正面）
+  warning: '#F59E0B',    // 黄色（关注）
+  error: '#DC2626',      // 红色（风险）
+}
+```
+
+### 关键 CSS 类
+
+- `.bg-gradient-finance` — 蓝色渐变背景
+- `.bg-gradient-gold` — 金色渐变
+- `.shadow-finance` — 金融风格阴影
+- `.card-hover` — 卡片悬停效果
+- `.tap-effect` — 点击触感效果
+- `.val-bar-animate` — 进度条动画
+- `.val-score-ring` — 评分环动画
+
+---
+
+## 七、环境变量与密钥
+
+### Cloudflare Workers 绑定
+
+```typescript
+type Bindings = {
+  OPENAI_API_KEY: string      // OpenAI 兼容 API Key
+  OPENAI_BASE_URL: string     // API 基地址（默认 genspark proxy）
+}
+```
+
+### 本地开发
+
+```bash
+# .dev.vars 文件（不提交 git）
+OPENAI_API_KEY=sk-xxx
+OPENAI_BASE_URL=https://www.genspark.ai/api/llm_proxy/v1
+```
+
+### 生产环境
+
+```bash
+npx wrangler pages secret put OPENAI_API_KEY --project-name flow-capital
+npx wrangler pages secret put OPENAI_BASE_URL --project-name flow-capital
+```
+
+---
+
+## 八、开发/部署命令
+
+### 本地开发
+
+```bash
+cd /home/user/webapp
+
+# 安装依赖
+npm install
+
+# 构建
+npm run build
+
+# 启动本地服务（PM2）
+fuser -k 3000/tcp 2>/dev/null || true
+pm2 start ecosystem.config.cjs
+
+# 测试
+curl http://localhost:3000
+curl -X POST http://localhost:3000/api/valuation \
+  -H "Content-Type: application/json" \
+  -d '{"name":"测试","industry":"餐饮","revenue":1200000,"cost":800000}'
+
+# 查看日志
+pm2 logs --nostream
+```
+
+### 部署到 Cloudflare Pages
+
+```bash
+npm run build
+npx wrangler pages deploy dist --project-name flow-capital
+```
+
+### Git 操作
+
+```bash
+git add .
+git commit -m "feat: 描述"
+git push origin main
+```
+
+---
+
+## 九、从 Demo 到生产的升级路径
+
+### 优先级排序
+
+| 优先级 | 升级项 | Demo 阶段 | 生产阶段 | 复杂度 |
+|--------|--------|-----------|---------|--------|
+| P0 | LLM 分析引擎 | API Key 过期，降级本地 | 多 Agent + CoT 推演 | 中 |
+| P0 | 5% 探针数据采集 | 手动填表 | 微信群 AI Agent 自动采集真实经营数据 | 高 |
+| P1 | 蒙特卡洛模拟 | 前端简单公式 | 后端概率分布 + 1000 次模拟 | 中 |
+| P1 | D1 项目指纹库 | 10 条 Mock 数据 | Cloudflare D1 真实数据库 + 用户录入 | 中 |
+| P2 | 余弦相似度匹配 | 欧氏距离简化版 | 六维向量 + TF-IDF + 余弦相似度 | 低 |
+| P2 | PDF 方案导出 | TXT 纯文本 | 带图表的 PDF（用 html2pdf） | 中 |
+| P3 | 智能合约清算 | 前端模拟分账表 | 链上 T+0 自动扣款分账 | 高 |
+| P3 | 银行流水 API | 手动上传 | 实时对接银行开放 API | 高 |
+| P3 | 用户体系 | 无 | 注册/登录/项目管理/历史记录 | 中 |
+
+### 第一阶段优先做（低成本高收益）
+
+1. **接入有效 LLM API Key** → 让 HSR 引擎从"本地公式"升级为"AI 深度分析"
+2. **D1 数据库接入** → Look-alike 从 mock 变真实，用户可录入项目数据
+3. **蒙特卡洛模拟** → 赌局设计器的 IRR 从确定性计算变为概率分布
+4. **PDF 导出** → 联营方案书从 TXT 升级为专业 PDF
+
+### 第二阶段（需要外部资源）
+
+5. **5% 探针 + 微信群 AI Agent** → 自动获取真实经营数据
+6. **智能合约 + T+0 链上清算** → 分账不再靠信任靠代码
+7. **银行流水 API 对接** → 日流水实时更新，熔断条件自动触发
+
+---
+
+## 十、已知问题
+
+| 问题 | 状态 | 说明 |
+|------|------|------|
+| LLM API Key 过期 | 🟡 | 当前降级到本地引擎，功能完整但缺乏深度分析能力 |
+| 估值对亏损项目显示负数 | ✅ 已处理 | 亏损项目估值区间显示为"先扭亏再谈估值" |
+| 极端亏损（pm<-100%）分型 | ✅ 已处理 | 新增失血型/溺水型/输血型三档 |
+| Look-alike 数据太少 | 🟡 | 仅 10 条 mock，后续需接入 D1 数据库 |
+| 方案导出只有 TXT | 🟡 | 后续升级 PDF |
+| 移动端响应式 | ✅ | max-width 428px 移动优先设计 |
+| GitHub push 认证 | 🟡 | 需要先调用 `setup_github_environment` |
+
+---
+
+## 十一、文件变更记录
+
+### v0.3（当前版本）
 
 ```
-Step 1: 后端新增 wolfView + lookAlike 字段（src/index.tsx）
-Step 2: 前端新增狼视角面板渲染（app.js）
-Step 3: 前端新增赌局设计器 UI + 实时计算（app.js 核心）
-Step 4: 前端新增 T+0 分账表（app.js）
-Step 5: 前端新增 Look-alike 雷达（app.js）
-Step 6: 前端新增赌局方案导出（app.js）
-Step 7: 调整结果页排版顺序
-Step 8: 构建 + 测试 + 提交 + 推送
+src/index.tsx      1075 行  （后端：Hono + HSR引擎 + wolfView + lookAlike）
+public/static/app.js  2820 行  （前端：全部页面 + 赌局设计器 + 分账表 + Look-alike）
+public/static/styles.css       （自定义样式）
+ecosystem.config.cjs           （PM2 配置）
+vite.config.ts                 （Vite 构建配置）
+wrangler.jsonc                 （Cloudflare Workers 配置）
+package.json                   （依赖管理）
+DEMO_DEV_PLAN.md               （本文档）
+README.md                      （项目说明）
 ```
 
-预计代码量：前端 +500 行，后端 +80 行
-预计完成时间：一次性开发
+### 关键 commit 历史
+
+| Hash | 说明 |
+|------|------|
+| `4998e1f` | feat: 估值表单新增辅助材料上传 |
+| `51f2298` | fix: 深度修复本地引擎bad case + LLM源标识 |
+| `b9eb20a` | fix: 修复本地估值引擎极端bad case话术 |
+| `812d7a2` | feat: 一体千面翻译升级 — 老板视角面板 + 定价参数 + 风控清单 |
+| `404973d` | feat: 融入HSR白皮书理论 + 一体千面翻译模型 |
+| `dd28459` | style: 估值引擎UI统一为浅色金融风格 |
+
+---
+
+## 十二、快速二次开发指南
+
+### 添加新的估值维度
+
+1. 在 `localValuationEngine()` (index.tsx:293~348) 添加打分逻辑
+2. 在 `weights` 对象中添加权重（确保总和=1）
+3. 在 `dimList` (app.js:1966) 添加维度定义
+4. 构建 & 测试
+
+### 添加新的基因分型
+
+1. 在 `localValuationEngine()` (index.tsx:370~408) 的 if-else 链中添加
+2. 注意优先级顺序：极端负面 → 正常分型 → 默认蛰伏型
+3. 对应添加 verdict 文案
+
+### 添加新的 Look-alike 项目
+
+1. 在 `buildLookAlike()` (index.tsx:989~1000) 的 `db` 数组中添加
+2. 字段：name, industry, icon, dailyFlowK, pm, turnover, monthlyRev, employees
+
+### 调整赌局设计器参数范围
+
+1. 在 `renderDealDesigner()` (app.js:2327~2337) 修改 `renderSlider` 调用的 min/max/step
+2. 在 `calcDealDesigner()` (app.js:2364) 修改计算逻辑
+3. 默认值来自后端 `buildWolfView().defaults`
+
+### 修改估值结果页排版
+
+1. 在 `renderValuationResult()` (app.js:1951~2244) 中调整各面板的顺序
+2. 每个面板是一个独立的 HTML 字符串拼接块

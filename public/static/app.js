@@ -2215,10 +2215,25 @@ function renderValuationResult(r) {
       riskViewHtml +
     '</div>' : '') +
 
-    // 操作栏 — 统一金融风格
-    '<div class="mx-4 mt-3 mb-6 flex gap-3">' +
+    // ═══════════════════ 以下为狼视角 + 赌局设计器 + 分账表 + Look-alike ═══════════════════
+
+    // 🐺 狼视角面板
+    renderWolfViewSection(r) +
+
+    // 🎰 赌局设计器
+    renderDealDesigner(r) +
+
+    // 💸 T+0 分账模拟表（占位，赌局设计器计算后填入）
+    '<div id="val-settlement-table" class="mx-4 mt-3 hidden"></div>' +
+
+    // 🔭 Look-alike 雷达
+    renderLookAlikeSection(r) +
+
+    // 操作栏 — 三个按钮
+    '<div class="mx-4 mt-3 mb-6 flex gap-2">' +
       '<button class="flex-1 py-3 rounded-xl font-semibold text-sm tap-effect flex items-center justify-center gap-2 bg-white border border-gray-200 text-gray-600 shadow-sm card-hover" onclick="resetValuation()"><i class="fas fa-redo text-xs"></i> 重新评估</button>' +
       '<button class="flex-1 py-3 rounded-xl font-semibold text-sm tap-effect flex items-center justify-center gap-2 bg-gradient-finance text-white shadow-finance" onclick="exportValuationReport()"><i class="fas fa-file-export text-xs"></i> 导出报告</button>' +
+      '<button class="flex-1 py-3 rounded-xl font-semibold text-sm tap-effect flex items-center justify-center gap-2 bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-gold" onclick="exportDealPlan()"><i class="fas fa-scroll text-xs"></i> 导出方案</button>' +
     '</div>';
 
   // 滚动到结果区域
@@ -2226,6 +2241,435 @@ function renderValuationResult(r) {
     var container = document.getElementById('page-valuation').querySelector('.overflow-auto');
     if (container) container.scrollTo({ top: container.scrollHeight * 0.25, behavior: 'smooth' });
   }, 200);
+}
+
+// ==================== 🐺 狼视角面板 ====================
+function renderWolfViewSection(r) {
+  var wv = r.wolfView;
+  if (!wv) return '';
+  var d = wv.defaults || {};
+
+  var verdictBg = (r.dimensions && r.dimensions.profitability && r.dimensions.profitability.score > 60)
+    ? 'from-emerald-50 to-green-50 border-emerald-200' : 'from-red-50 to-orange-50 border-red-200';
+
+  return '<div class="mx-4 mt-3 bg-white rounded-2xl shadow-finance border border-gray-100 overflow-hidden">' +
+    '<div class="p-4 bg-gradient-to-r from-gray-900 to-gray-800 border-b border-gray-700">' +
+      '<div class="flex items-center gap-2"><span class="text-lg">🐺</span><span class="text-white font-bold text-sm">狼视角 — 这个盘口值不值得做</span><span class="text-xs text-gray-400 ml-auto">资金端操盘手专用</span></div>' +
+    '</div>' +
+    '<div class="p-4 space-y-3">' +
+      // 核心判断
+      '<div class="p-3 rounded-xl bg-gradient-to-r ' + verdictBg + ' border">' +
+        '<p class="text-xs font-bold text-gray-700 mb-1"><i class="fas fa-crosshairs mr-1"></i>核心判断</p>' +
+        '<p class="text-gray-800 text-xs leading-relaxed">' + escapeHtml(wv.verdict || '') + '</p>' +
+      '</div>' +
+      // 最优结构
+      '<div class="p-3 rounded-xl bg-blue-50/70 border border-blue-100">' +
+        '<p class="text-xs font-bold text-gray-700 mb-1"><i class="fas fa-chess mr-1"></i>推荐结构</p>' +
+        '<p class="text-gray-800 text-xs leading-relaxed">' + escapeHtml(wv.bestStructure || '') + '</p>' +
+      '</div>' +
+      // 三栏数据
+      '<div class="grid grid-cols-3 gap-2">' +
+        '<div class="text-center p-2.5 rounded-xl bg-gray-50 border border-gray-100">' +
+          '<p class="text-xs text-gray-400 mb-0.5">杠杆比</p>' +
+          '<p class="text-sm font-bold text-gray-800">' + escapeHtml(d.leverageRatio || '-') + '</p>' +
+        '</div>' +
+        '<div class="text-center p-2.5 rounded-xl bg-gray-50 border border-gray-100">' +
+          '<p class="text-xs text-gray-400 mb-0.5">安全垫</p>' +
+          '<p class="text-sm font-bold text-gray-800">' + (d.safetyMargin || 0) + '%</p>' +
+        '</div>' +
+        '<div class="text-center p-2.5 rounded-xl bg-gray-50 border border-gray-100">' +
+          '<p class="text-xs text-gray-400 mb-0.5">预估IRR</p>' +
+          '<p class="text-sm font-bold ' + (d.estIRR > 30 ? 'text-success' : 'text-gray-800') + '">' + (d.estIRR || 0) + '%</p>' +
+        '</div>' +
+      '</div>' +
+      // 风险偏好
+      '<div class="p-3 rounded-xl bg-amber-50/70 border border-amber-100">' +
+        '<p class="text-xs font-bold text-gray-700 mb-1"><i class="fas fa-tachometer-alt mr-1"></i>风险偏好</p>' +
+        '<p class="text-gray-800 text-xs leading-relaxed">' + escapeHtml(wv.riskAppetite || '') + '</p>' +
+      '</div>' +
+      // 熔断开关
+      '<div class="p-3 rounded-xl bg-red-50/70 border border-red-100">' +
+        '<p class="text-xs font-bold text-gray-700 mb-1"><i class="fas fa-power-off mr-1"></i>熔断开关</p>' +
+        '<p class="text-gray-800 text-xs leading-relaxed">' + escapeHtml(wv.killSwitch || '') + '</p>' +
+      '</div>' +
+      // 复制提示
+      '<div class="p-3 rounded-xl bg-purple-50/70 border border-purple-100">' +
+        '<p class="text-xs font-bold text-gray-700 mb-1"><i class="fas fa-copy mr-1"></i>复制提示</p>' +
+        '<p class="text-gray-800 text-xs leading-relaxed">' + escapeHtml(wv.copyHint || '') + '</p>' +
+      '</div>' +
+    '</div>' +
+  '</div>';
+}
+
+// ==================== 🎰 赌局设计器（动态非对称定价计算器） ====================
+function renderDealDesigner(r) {
+  var wv = r.wolfView || {};
+  var d = wv.defaults || {};
+  var baseDaily = (r.pricingInputs && r.pricingInputs.baselineDailyRevenue) || 5000;
+  var pm = 0;
+  if (r.dimensions && r.dimensions.profitability) {
+    // 从 ownerView 或直接算
+    pm = valuationState.formData ? ((valuationState.formData.revenue || 0) - (valuationState.formData.cost || 0)) / Math.max(1, valuationState.formData.revenue || 1) * 100 : 15;
+  }
+
+  return '<div class="mx-4 mt-3 bg-white rounded-2xl shadow-finance border border-gray-100 overflow-hidden">' +
+    '<div class="p-4 bg-gradient-to-r from-amber-500 to-orange-500 border-b">' +
+      '<div class="flex items-center gap-2"><span class="text-lg">🎰</span><span class="text-white font-bold text-sm">造局设计器 — 设计你的赌局</span></div>' +
+      '<p class="text-amber-100 text-xs mt-1">拖动滑块设计交易结构，实时查看收益场景</p>' +
+    '</div>' +
+    '<div class="p-4 space-y-4" id="deal-designer-body">' +
+      // 隐藏参数
+      '<input type="hidden" id="dd-base-daily" value="' + baseDaily + '">' +
+      '<input type="hidden" id="dd-base-pm" value="' + pm.toFixed(1) + '">' +
+      '<input type="hidden" id="dd-growth-rate" value="' + ((valuationState.formData && valuationState.formData.growthRate) || 0) + '">' +
+
+      // 滑块1: 劣后资金
+      renderSlider('dd-wolf', '我出多少（劣后）', d.wolfCapital || 20, 5, 200, '万', 5) +
+      // 滑块2: 优先资金
+      renderSlider('dd-senior', '拉多少优先资金', d.seniorCapital || 80, 0, 500, '万', 10) +
+      // 滑块3: 优先保底回报
+      renderSlider('dd-senior-ret', '优先方保底年化', d.seniorReturn || 12, 6, 24, '%', 1) +
+      // 滑块4: 超额分成
+      renderSlider('dd-wolf-share', '超额利润我分', d.wolfShare || 92, 50, 98, '%', 1) +
+      // 滑块5: 截留比例
+      renderSlider('dd-retain', '日流水截留', d.dailyRetainPct || 15, 5, 40, '%', 1) +
+      // 滑块6: 熔断线
+      renderSlider('dd-circuit', '月营收跌多少熔断', d.circuitBreakerPct || 40, 20, 60, '%', 5) +
+
+      // 实时结果区
+      '<div id="dd-result" class="mt-2">' + calcDealDesigner() + '</div>' +
+    '</div>' +
+  '</div>';
+}
+
+function renderSlider(id, label, defaultVal, min, max, unit, step) {
+  return '<div>' +
+    '<div class="flex justify-between items-center mb-1.5">' +
+      '<span class="text-xs font-semibold text-gray-600">' + label + '</span>' +
+      '<span class="text-xs font-bold text-primary" id="' + id + '-val">' + defaultVal + unit + '</span>' +
+    '</div>' +
+    '<input type="range" id="' + id + '" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-primary" ' +
+      'min="' + min + '" max="' + max + '" value="' + defaultVal + '" step="' + step + '" ' +
+      'oninput="document.getElementById(\'' + id + '-val\').textContent=this.value+\'' + unit + '\'; updateDealDesigner()">' +
+  '</div>';
+}
+
+function updateDealDesigner() {
+  var el = document.getElementById('dd-result');
+  if (el) el.innerHTML = calcDealDesigner();
+  // 同时更新分账表
+  updateSettlementTable();
+}
+
+function calcDealDesigner() {
+  var wolf = parseFloat((document.getElementById('dd-wolf') || {}).value) || 20;
+  var senior = parseFloat((document.getElementById('dd-senior') || {}).value) || 80;
+  var seniorRet = parseFloat((document.getElementById('dd-senior-ret') || {}).value) || 12;
+  var wolfShare = parseFloat((document.getElementById('dd-wolf-share') || {}).value) || 92;
+  var retain = parseFloat((document.getElementById('dd-retain') || {}).value) || 15;
+  var circuit = parseFloat((document.getElementById('dd-circuit') || {}).value) || 40;
+  var baseDaily = parseFloat((document.getElementById('dd-base-daily') || {}).value) || 5000;
+  var pm = parseFloat((document.getElementById('dd-base-pm') || {}).value) || 15;
+  var growthRate = parseFloat((document.getElementById('dd-growth-rate') || {}).value) || 0;
+
+  var total = wolf + senior;
+  var leverage = wolf > 0 ? (total / wolf).toFixed(1) : '∞';
+  var safety = total > 0 ? Math.round(senior / total * 100) : 0;
+
+  // 三档场景
+  var scenarios = [
+    { label: '保守', factor: 0.7, color: 'text-gray-600', bg: 'bg-gray-50' },
+    { label: '中性', factor: 1.0, color: 'text-primary', bg: 'bg-primary/5' },
+    { label: '乐观', factor: 1.3, color: 'text-success', bg: 'bg-emerald-50' }
+  ];
+
+  var scenarioCards = scenarios.map(function(s) {
+    var adjDaily = baseDaily * s.factor;
+    var monthRetain = adjDaily * (retain / 100) * 30;
+    var seniorTotal = senior * 10000 * (1 + seniorRet / 100);
+    var monthsToPay = monthRetain > 0 ? Math.ceil(seniorTotal / monthRetain) : 99;
+    var paybackDays = Math.min(monthsToPay * 30, 999);
+    var remainMonths = Math.max(0, 12 - monthsToPay);
+    var monthlyProfit = adjDaily * (pm / 100) * 30 / 10000;
+    var wolfProfit = monthlyProfit * remainMonths * (wolfShare / 100);
+    var irr = wolf > 0 ? Math.round(wolfProfit / wolf * 100) : 0;
+
+    return '<div class="rounded-xl p-3 text-center ' + s.bg + ' border border-gray-100">' +
+      '<p class="text-xs text-gray-400 mb-1 font-medium">' + s.label + '</p>' +
+      '<p class="text-lg font-black ' + s.color + '">' + irr + '%</p>' +
+      '<p class="text-xs text-gray-500">IRR</p>' +
+      '<p class="text-xs font-bold text-gray-700 mt-1">' + paybackDays + '天</p>' +
+      '<p class="text-xs text-gray-400">回本</p>' +
+    '</div>';
+  }).join('');
+
+  // 极端风险场景
+  var extremeDaily = baseDaily * 0.5;
+  var extremeRetain = extremeDaily * (retain / 100) * 30;
+  var extremeSenior = senior * 10000 * (1 + seniorRet / 100);
+  var extremeMonths = extremeRetain > 0 ? Math.ceil(extremeSenior / extremeRetain) : 99;
+
+  return '<div class="space-y-3">' +
+    // 核心指标栏
+    '<div class="grid grid-cols-3 gap-2">' +
+      '<div class="text-center p-2.5 rounded-xl bg-gray-900 text-white">' +
+        '<p class="text-xs text-gray-400 mb-0.5">总盘口</p>' +
+        '<p class="text-sm font-bold">' + total + '万</p>' +
+      '</div>' +
+      '<div class="text-center p-2.5 rounded-xl bg-gray-900 text-white">' +
+        '<p class="text-xs text-gray-400 mb-0.5">杠杆</p>' +
+        '<p class="text-sm font-bold">' + leverage + 'x</p>' +
+      '</div>' +
+      '<div class="text-center p-2.5 rounded-xl bg-gray-900 text-white">' +
+        '<p class="text-xs text-gray-400 mb-0.5">安全垫</p>' +
+        '<p class="text-sm font-bold">' + safety + '%</p>' +
+      '</div>' +
+    '</div>' +
+    // 三档场景
+    '<div class="grid grid-cols-3 gap-2">' + scenarioCards + '</div>' +
+    // 风险提示
+    '<div class="p-2.5 rounded-xl bg-red-50 border border-red-100 flex items-start gap-2">' +
+      '<i class="fas fa-exclamation-triangle text-error text-xs mt-0.5 flex-shrink-0"></i>' +
+      '<p class="text-xs text-gray-600">极端风险：若月流水跌50%，回本延至 <strong class="text-error">' + (extremeMonths * 30) + '天</strong>' +
+      (extremeMonths > 12 ? ' <span class="text-error font-bold">（超过1年，存在本金损失风险）</span>' : '') + '</p>' +
+    '</div>' +
+    // 分账规则说明
+    '<div class="p-2.5 rounded-xl bg-gray-50 border border-gray-100">' +
+      '<p class="text-xs text-gray-500 leading-relaxed">' +
+        '<strong>分账规则：</strong>阶段一（还本期）日流水×' + retain + '%截留 → 优先还本付息；' +
+        '阶段二（分利期）超额利润 <strong class="text-primary">' + wolfShare + '%</strong> 归操盘方，' + (100 - wolfShare) + '% 归优先方。' +
+        '熔断线：月营收连续2月下降超' + circuit + '%触发回购。' +
+      '</p>' +
+    '</div>' +
+    // 展开分账表按钮
+    '<button class="w-full py-2.5 rounded-xl text-xs font-semibold text-primary bg-primary/5 border border-primary/20 tap-effect flex items-center justify-center gap-1.5" onclick="toggleSettlementTable()">' +
+      '<i class="fas fa-table"></i> 查看逐月分账模拟表' +
+    '</button>' +
+  '</div>';
+}
+
+// ==================== 💸 T+0 分账模拟表 ====================
+function toggleSettlementTable() {
+  var el = document.getElementById('val-settlement-table');
+  if (!el) return;
+  if (el.classList.contains('hidden')) {
+    el.classList.remove('hidden');
+    updateSettlementTable();
+    el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  } else {
+    el.classList.add('hidden');
+  }
+}
+
+function updateSettlementTable() {
+  var el = document.getElementById('val-settlement-table');
+  if (!el || el.classList.contains('hidden')) return;
+
+  var wolf = parseFloat((document.getElementById('dd-wolf') || {}).value) || 20;
+  var senior = parseFloat((document.getElementById('dd-senior') || {}).value) || 80;
+  var seniorRet = parseFloat((document.getElementById('dd-senior-ret') || {}).value) || 12;
+  var wolfShare = parseFloat((document.getElementById('dd-wolf-share') || {}).value) || 92;
+  var retain = parseFloat((document.getElementById('dd-retain') || {}).value) || 15;
+  var baseDaily = parseFloat((document.getElementById('dd-base-daily') || {}).value) || 5000;
+  var pm = parseFloat((document.getElementById('dd-base-pm') || {}).value) || 15;
+  var growthRate = parseFloat((document.getElementById('dd-growth-rate') || {}).value) || 0;
+
+  var seniorRemain = senior * 10000 * (1 + seniorRet / 100); // 优先待回收
+  var cumPaid = 0;
+  var wolfTotal = 0;
+  var seniorEarned = 0;
+  var paybackMonth = 0;
+  var rows = '';
+
+  for (var m = 1; m <= 12; m++) {
+    // 每月日均流水：基准 × (1 + 月增长) + 小幅波动
+    var monthGrowth = 1 + (growthRate / 12) * m;
+    var jitter = 0.95 + Math.sin(m * 1.7) * 0.05; // 模拟波动
+    var dailyFlow = Math.round(baseDaily * monthGrowth * jitter);
+    var monthRetain = Math.round(dailyFlow * (retain / 100) * 30);
+    var monthProfit = Math.round(dailyFlow * (pm / 100) * 30);
+
+    var toPay = 0;
+    var excess = 0;
+    var wolfGet = 0;
+    var seniorGet = 0;
+    var highlight = '';
+
+    if (seniorRemain > 0) {
+      // 还本期
+      toPay = Math.min(monthRetain, seniorRemain);
+      seniorRemain -= toPay;
+      cumPaid += toPay;
+      seniorGet = toPay;
+      if (seniorRemain <= 0 && paybackMonth === 0) {
+        paybackMonth = m;
+        highlight = ' class="bg-emerald-50 font-semibold"';
+      }
+    } else {
+      // 分利期
+      excess = Math.max(0, monthProfit);
+      wolfGet = Math.round(excess * wolfShare / 100);
+      seniorGet = excess - wolfGet;
+      wolfTotal += wolfGet;
+      seniorEarned += seniorGet;
+    }
+
+    rows += '<tr' + highlight + '>' +
+      '<td class="px-2 py-1.5 text-center">' + m + '</td>' +
+      '<td class="px-2 py-1.5 text-right">' + (dailyFlow / 1000).toFixed(1) + 'K</td>' +
+      '<td class="px-2 py-1.5 text-right">' + (monthRetain / 10000).toFixed(2) + '万</td>' +
+      '<td class="px-2 py-1.5 text-right">' + (seniorRemain > 0 ? (seniorRemain / 10000).toFixed(1) + '万' : '<span class="text-success">已清</span>') + '</td>' +
+      '<td class="px-2 py-1.5 text-right">' + (excess > 0 ? (excess / 10000).toFixed(2) + '万' : '—') + '</td>' +
+      '<td class="px-2 py-1.5 text-right font-bold ' + (wolfGet > 0 ? 'text-success' : '') + '">' + (wolfGet > 0 ? (wolfGet / 10000).toFixed(2) + '万' : '—') + '</td>' +
+    '</tr>';
+  }
+
+  var wolfIRR = wolf > 0 ? Math.round(wolfTotal / 10000 / wolf * 100) : 0;
+
+  el.innerHTML = '<div class="bg-white rounded-2xl shadow-finance border border-gray-100 overflow-hidden">' +
+    '<div class="p-4 bg-gradient-to-r from-gray-800 to-gray-700">' +
+      '<div class="flex items-center gap-2"><span class="text-lg">💸</span><span class="text-white font-bold text-sm">T+0 分账模拟（逐月）</span></div>' +
+    '</div>' +
+    '<div class="overflow-x-auto">' +
+      '<table class="w-full text-xs">' +
+        '<thead><tr class="bg-gray-50 text-gray-500">' +
+          '<th class="px-2 py-2 text-center font-semibold">月</th>' +
+          '<th class="px-2 py-2 text-right font-semibold">日均流水</th>' +
+          '<th class="px-2 py-2 text-right font-semibold">月截留</th>' +
+          '<th class="px-2 py-2 text-right font-semibold">优先剩余</th>' +
+          '<th class="px-2 py-2 text-right font-semibold">超额利润</th>' +
+          '<th class="px-2 py-2 text-right font-semibold">🐺 狼分得</th>' +
+        '</tr></thead>' +
+        '<tbody class="divide-y divide-gray-50">' + rows + '</tbody>' +
+      '</table>' +
+    '</div>' +
+    '<div class="p-4 bg-gray-50 border-t border-gray-100">' +
+      '<div class="grid grid-cols-3 gap-3 text-center">' +
+        '<div><p class="text-xs text-gray-400">狼投入</p><p class="text-sm font-bold text-gray-800">' + wolf + '万</p></div>' +
+        '<div><p class="text-xs text-gray-400">12月净赚</p><p class="text-sm font-bold text-success">' + (wolfTotal / 10000).toFixed(1) + '万</p></div>' +
+        '<div><p class="text-xs text-gray-400">年化IRR</p><p class="text-sm font-bold ' + (wolfIRR > 30 ? 'text-success' : 'text-gray-800') + '">' + wolfIRR + '%</p></div>' +
+      '</div>' +
+      (paybackMonth > 0 ? '<p class="text-xs text-gray-500 text-center mt-2"><i class="fas fa-check-circle text-success mr-1"></i>第 ' + paybackMonth + ' 个月优先方本息回收完毕，之后超额利润 ' + wolfShare + '% 归狼</p>' :
+        '<p class="text-xs text-error text-center mt-2"><i class="fas fa-exclamation-circle mr-1"></i>12个月内优先方本息未回收完毕，需延长周期或调整参数</p>') +
+    '</div>' +
+  '</div>';
+}
+
+// ==================== 🔭 Look-alike 跨行业雷达 ====================
+function renderLookAlikeSection(r) {
+  var items = r.lookAlike;
+  if (!items || items.length === 0) return '';
+
+  var cardsHtml = items.map(function(p, i) {
+    var simColor = p.similarity >= 85 ? 'text-success bg-emerald-50 border-emerald-200' : p.similarity >= 70 ? 'text-primary bg-blue-50 border-blue-200' : 'text-gray-600 bg-gray-50 border-gray-200';
+    return '<div class="p-3 rounded-xl bg-white border border-gray-100 shadow-sm">' +
+      '<div class="flex items-center justify-between mb-2">' +
+        '<div class="flex items-center gap-2">' +
+          '<span class="text-xl">' + (p.icon || '🏢') + '</span>' +
+          '<div>' +
+            '<p class="text-xs font-bold text-gray-800">' + escapeHtml(p.name) + '</p>' +
+            '<p class="text-xs text-gray-400">' + escapeHtml(p.industry) + '</p>' +
+          '</div>' +
+        '</div>' +
+        '<span class="px-2 py-0.5 rounded-full text-xs font-bold border ' + simColor + '">' + p.similarity + '%</span>' +
+      '</div>' +
+      '<div class="grid grid-cols-3 gap-1.5 text-center">' +
+        '<div class="p-1.5 rounded bg-gray-50"><p class="text-xs text-gray-400">日流水</p><p class="text-xs font-bold text-gray-700">' + p.dailyFlowK + 'K</p></div>' +
+        '<div class="p-1.5 rounded bg-gray-50"><p class="text-xs text-gray-400">利润率</p><p class="text-xs font-bold text-gray-700">' + p.pm + '%</p></div>' +
+        '<div class="p-1.5 rounded bg-gray-50"><p class="text-xs text-gray-400">月营收</p><p class="text-xs font-bold text-gray-700">' + p.monthlyRev + '万</p></div>' +
+      '</div>' +
+      '<button class="w-full mt-2 py-2 rounded-lg text-xs font-semibold text-amber-700 bg-amber-50 border border-amber-200 tap-effect" onclick="showToast(\'✅ 已套用当前赌局模板到「' + escapeHtml(p.name) + '」\')">' +
+        '<i class="fas fa-copy mr-1"></i>一键套用赌局模板' +
+      '</button>' +
+    '</div>';
+  }).join('');
+
+  return '<div class="mx-4 mt-3 bg-white rounded-2xl shadow-finance border border-gray-100 overflow-hidden">' +
+    '<div class="p-4 bg-gradient-to-r from-purple-600 to-indigo-600">' +
+      '<div class="flex items-center gap-2"><span class="text-lg">🔭</span><span class="text-white font-bold text-sm">Look-alike 雷达 — 找到下一个猎物</span></div>' +
+      '<p class="text-purple-200 text-xs mt-1">基于 P=MV 模型跨行业匹配物理特征相似的项目</p>' +
+    '</div>' +
+    '<div class="p-4 space-y-3">' + cardsHtml + '</div>' +
+    '<div class="px-4 pb-4"><p class="text-xs text-gray-400 text-center"><i class="fas fa-satellite-dish mr-1"></i>覆盖 12 个行业 · 基于六维指纹自动匹配</p></div>' +
+  '</div>';
+}
+
+// ==================== 📜 赌局方案导出（一页纸） ====================
+function exportDealPlan() {
+  if (!valuationState.result) { showToast('请先完成估值分析'); return; }
+  var r = valuationState.result;
+  var fd = valuationState.formData || {};
+  var wv = r.wolfView || {};
+  var wd = wv.defaults || {};
+
+  // 从设计器读当前参数
+  var wolf = parseFloat((document.getElementById('dd-wolf') || {}).value) || wd.wolfCapital || 20;
+  var senior = parseFloat((document.getElementById('dd-senior') || {}).value) || wd.seniorCapital || 80;
+  var seniorRet = parseFloat((document.getElementById('dd-senior-ret') || {}).value) || 12;
+  var wolfSharePct = parseFloat((document.getElementById('dd-wolf-share') || {}).value) || wd.wolfShare || 92;
+  var retainPct = parseFloat((document.getElementById('dd-retain') || {}).value) || wd.dailyRetainPct || 15;
+  var circuitPct = parseFloat((document.getElementById('dd-circuit') || {}).value) || 40;
+  var total = wolf + senior;
+  var leverage = wolf > 0 ? (total / wolf).toFixed(1) : '∞';
+  var safety = total > 0 ? Math.round(senior / total * 100) : 0;
+
+  var text = '═══════════════════════════════════════\n';
+  text += '  Flow Capital 联营方案书（一页纸）\n';
+  text += '═══════════════════════════════════════\n\n';
+  text += '项目：' + (fd.name || '未命名') + ' | 赛道：' + (fd.industry || '未指定') + ' | 基因：' + (r.archetype || '-') + '\n';
+  text += '生成时间：' + new Date().toLocaleDateString('zh-CN') + '\n\n';
+
+  text += '─── 项目体检摘要 ───\n';
+  text += '综合评分：' + r.score + '/100（' + r.grade + '级）\n';
+  text += '日流水：' + ((r.pricingInputs && r.pricingInputs.baselineDailyRevenue) ? (r.pricingInputs.baselineDailyRevenue / 1000).toFixed(1) + 'K' : '-') + '\n';
+  text += '一句话：' + ((r.report && r.report.oneLiner) || '') + '\n\n';
+
+  text += '─── 交易结构设计 ───\n';
+  text += '总盘口：' + total + '万\n';
+  text += '├── 劣后资金（操盘方）：' + wolf + '万（' + Math.round(wolf / total * 100) + '%）\n';
+  text += '└── 优先资金（资方）：' + senior + '万（' + Math.round(senior / total * 100) + '%）\n';
+  text += '杠杆倍数：' + leverage + 'x\n\n';
+
+  text += '优先方条件：\n';
+  text += '├── 保底年化：' + seniorRet + '%\n';
+  text += '├── 日流水截留还款：' + retainPct + '%\n';
+  text += '└── 预计回本周期：' + (wd.estPaybackMonths || '-') + '个月\n\n';
+
+  text += '超额利润分配：\n';
+  text += '├── 操盘方（劣后）：' + wolfSharePct + '%\n';
+  text += '└── 资方（优先）：' + (100 - wolfSharePct) + '%\n\n';
+
+  text += '─── 收益预测（中性场景）───\n';
+  text += '操盘方预估IRR：' + (wd.estIRR || '-') + '%\n';
+  text += '安全垫：' + safety + '%\n\n';
+
+  text += '─── 风控条件 ───\n';
+  text += '熔断线：月营收连续2个月下降超过' + circuitPct + '%触发回购\n';
+  text += '安全垫：' + safety + '%（优先资金全部亏完，操盘方才承担损失）\n';
+  text += '监控频率：' + ((r.pricingInputs && r.pricingInputs.monitorFreq) || '月度') + '\n\n';
+
+  text += '─── 分账规则 ───\n';
+  text += '阶段一（还本期）：日流水 × ' + retainPct + '% 截留 → 优先还本付息\n';
+  text += '阶段二（分利期）：超额利润 ' + wolfSharePct + '% 归操盘方，' + (100 - wolfSharePct) + '% 归优先方\n';
+  text += '结算方式：T+0 自动清算\n\n';
+
+  if (wv.verdict) {
+    text += '─── 狼视角判断 ───\n';
+    text += wv.verdict + '\n\n';
+  }
+
+  text += '═══════════════════════════════════════\n';
+  text += '  由 Flow Capital HSR 引擎生成\n';
+  text += '═══════════════════════════════════════\n';
+
+  var blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = '联营方案_' + (fd.name || '项目') + '_' + new Date().toISOString().slice(0,10) + '.txt';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  showToast('✅ 联营方案已导出');
 }
 
 // ==================== 估值辅助函数 ====================
