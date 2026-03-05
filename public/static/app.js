@@ -1500,7 +1500,8 @@ function escapeHtml(s) {
 let valuationState = {
   loading: false,
   result: null,
-  formData: {}
+  formData: {},
+  attachments: []   // { name, size, type, dataUrl, textContent }
 };
 
 function renderValuationPage() {
@@ -1639,6 +1640,32 @@ function renderValuationPage() {
               </div>
             </details>
 
+            <!-- 辅助材料上传 -->
+            <div class="flex items-center gap-2 mb-3">
+              <i class="fas fa-paperclip text-primary text-sm"></i>
+              <span class="text-xs font-semibold text-gray-700">辅助材料（可选）</span>
+              <span class="text-xs text-gray-400">上传后 AI 将结合数据深度分析</span>
+            </div>
+            <div id="val-upload-zone"
+                 class="mb-4 border-2 border-dashed border-gray-200 rounded-xl p-4 text-center cursor-pointer transition-all hover:border-primary/50 hover:bg-primary/5"
+                 onclick="document.getElementById('val-file-input').click()"
+                 ondragover="event.preventDefault(); this.classList.add('border-primary','bg-primary/5');"
+                 ondragleave="this.classList.remove('border-primary','bg-primary/5');"
+                 ondrop="handleFileDrop(event)">
+              <input type="file" id="val-file-input" class="hidden" multiple
+                     accept=".pdf,.csv,.xls,.xlsx,.doc,.docx,.png,.jpg,.jpeg,.txt,.json"
+                     onchange="handleFileSelect(event)">
+              <div class="flex flex-col items-center gap-2 py-2">
+                <div class="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center">
+                  <i class="fas fa-cloud-upload-alt text-gray-400 text-lg"></i>
+                </div>
+                <p class="text-xs text-gray-500">点击或拖拽上传财务报表、银行流水等</p>
+                <p class="text-xs text-gray-400">支持 PDF / Excel / CSV / 图片 / Word，单文件≤5MB，最多5个</p>
+              </div>
+            </div>
+            <!-- 文件列表 -->
+            <div id="val-file-list" class="mb-4 space-y-2 hidden"></div>
+
             <!-- 提交按钮 — 与主站按钮风格一致 -->
             <button id="val-submit-btn" class="w-full py-3.5 bg-gradient-finance text-white rounded-xl font-bold text-sm tap-effect shadow-finance flex items-center justify-center gap-2" onclick="submitValuation()">
               <i class="fas fa-calculator"></i>
@@ -1662,6 +1689,169 @@ function renderValuationPage() {
       </div>
     </div>
   `;
+}
+
+// ==================== 文件上传处理 ====================
+const MAX_FILE_SIZE = 5 * 1024 * 1024;  // 5MB
+const MAX_FILE_COUNT = 5;
+const ALLOWED_TYPES = [
+  'application/pdf', 'text/csv', 'text/plain', 'application/json',
+  'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'image/png', 'image/jpeg', 'image/jpg'
+];
+
+function handleFileDrop(e) {
+  e.preventDefault();
+  var zone = document.getElementById('val-upload-zone');
+  if (zone) { zone.classList.remove('border-primary', 'bg-primary/5'); }
+  var files = e.dataTransfer ? e.dataTransfer.files : [];
+  processFiles(files);
+}
+
+function handleFileSelect(e) {
+  var files = e.target ? e.target.files : [];
+  processFiles(files);
+  // 清空 input 以允许重复选同一文件
+  if (e.target) e.target.value = '';
+}
+
+function processFiles(files) {
+  if (!files || files.length === 0) return;
+
+  for (var i = 0; i < files.length; i++) {
+    var file = files[i];
+    // 数量限制
+    if (valuationState.attachments.length >= MAX_FILE_COUNT) {
+      showToast('最多上传 ' + MAX_FILE_COUNT + ' 个文件');
+      break;
+    }
+    // 大小限制
+    if (file.size > MAX_FILE_SIZE) {
+      showToast(file.name + ' 超过 5MB 限制');
+      continue;
+    }
+    // 重名检查
+    var exists = valuationState.attachments.some(function(a) { return a.name === file.name; });
+    if (exists) {
+      showToast(file.name + ' 已添加');
+      continue;
+    }
+
+    readAndStoreFile(file);
+  }
+}
+
+function readAndStoreFile(file) {
+  var reader = new FileReader();
+  var isText = /text|csv|json|plain/.test(file.type) || /\.(csv|txt|json)$/i.test(file.name);
+
+  reader.onload = function(e) {
+    var attachment = {
+      name: file.name,
+      size: file.size,
+      type: file.type || guessFileType(file.name),
+      dataUrl: null,
+      textContent: null
+    };
+
+    if (isText) {
+      // 文本文件：存原始文本以供 LLM 分析
+      attachment.textContent = e.target.result;
+      // 同时读 dataUrl 用于标识
+      var reader2 = new FileReader();
+      reader2.onload = function(e2) {
+        attachment.dataUrl = e2.target.result;
+        valuationState.attachments.push(attachment);
+        renderFileList();
+      };
+      reader2.readAsDataURL(file);
+    } else {
+      // 二进制文件：存 base64 dataUrl
+      attachment.dataUrl = e.target.result;
+      valuationState.attachments.push(attachment);
+      renderFileList();
+    }
+  };
+
+  if (isText) {
+    reader.readAsText(file);
+  } else {
+    reader.readAsDataURL(file);
+  }
+}
+
+function guessFileType(name) {
+  var ext = name.split('.').pop().toLowerCase();
+  var map = { pdf: 'application/pdf', csv: 'text/csv', txt: 'text/plain', json: 'application/json', xls: 'application/vnd.ms-excel', xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', doc: 'application/msword', docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg' };
+  return map[ext] || 'application/octet-stream';
+}
+
+function removeAttachment(idx) {
+  valuationState.attachments.splice(idx, 1);
+  renderFileList();
+}
+
+function renderFileList() {
+  var list = document.getElementById('val-file-list');
+  if (!list) return;
+
+  if (valuationState.attachments.length === 0) {
+    list.classList.add('hidden');
+    list.innerHTML = '';
+    // 恢复上传区默认态
+    var zone = document.getElementById('val-upload-zone');
+    if (zone) {
+      zone.querySelector('.flex.flex-col').innerHTML =
+        '<div class="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center">' +
+        '<i class="fas fa-cloud-upload-alt text-gray-400 text-lg"></i></div>' +
+        '<p class="text-xs text-gray-500">点击或拖拽上传财务报表、银行流水等</p>' +
+        '<p class="text-xs text-gray-400">支持 PDF / Excel / CSV / 图片 / Word，单文件≤5MB，最多5个</p>';
+    }
+    return;
+  }
+
+  list.classList.remove('hidden');
+  var html = '';
+  valuationState.attachments.forEach(function(a, idx) {
+    var icon = getFileIcon(a.type, a.name);
+    var sizeStr = a.size < 1024 ? a.size + 'B' : a.size < 1048576 ? (a.size / 1024).toFixed(1) + 'KB' : (a.size / 1048576).toFixed(1) + 'MB';
+    var isImage = /^image\//.test(a.type);
+    var preview = isImage && a.dataUrl
+      ? '<img src="' + a.dataUrl + '" class="w-8 h-8 rounded object-cover flex-shrink-0" />'
+      : '<div class="w-8 h-8 rounded bg-gray-100 flex items-center justify-center flex-shrink-0"><i class="' + icon + ' text-sm text-gray-500"></i></div>';
+
+    html += '<div class="flex items-center gap-2.5 bg-white rounded-xl border border-gray-100 px-3 py-2 shadow-sm">' +
+      preview +
+      '<div class="flex-1 min-w-0">' +
+      '<p class="text-xs font-medium text-gray-700 truncate">' + escapeHtml(a.name) + '</p>' +
+      '<p class="text-xs text-gray-400">' + sizeStr + '</p>' +
+      '</div>' +
+      '<button class="p-1.5 text-gray-300 hover:text-red-400 transition-colors tap-effect" onclick="removeAttachment(' + idx + ')" title="移除">' +
+      '<i class="fas fa-times text-xs"></i></button>' +
+      '</div>';
+  });
+  list.innerHTML = html;
+
+  // 更新上传区文案
+  var zone = document.getElementById('val-upload-zone');
+  if (zone) {
+    var remaining = MAX_FILE_COUNT - valuationState.attachments.length;
+    zone.querySelector('.flex.flex-col').innerHTML =
+      '<div class="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">' +
+      '<i class="fas fa-plus text-primary text-sm"></i></div>' +
+      '<p class="text-xs text-gray-500">已添加 ' + valuationState.attachments.length + ' 个文件' +
+      (remaining > 0 ? '，还可添加 ' + remaining + ' 个' : '（已达上限）') + '</p>';
+  }
+}
+
+function getFileIcon(type, name) {
+  if (/pdf/i.test(type)) return 'fas fa-file-pdf text-red-400';
+  if (/excel|spreadsheet|csv/i.test(type) || /\.(xls|xlsx|csv)$/i.test(name)) return 'fas fa-file-excel text-green-500';
+  if (/word|document/i.test(type) || /\.(doc|docx)$/i.test(name)) return 'fas fa-file-word text-blue-500';
+  if (/image/i.test(type)) return 'fas fa-file-image text-purple-400';
+  if (/json/i.test(type) || /text/i.test(type)) return 'fas fa-file-alt text-gray-400';
+  return 'fas fa-file text-gray-400';
 }
 
 // ==================== 估值提交 ====================
@@ -1691,6 +1881,22 @@ function submitValuation() {
   }
 
   const formData = { name: name.trim(), industry, revenue, cost, dailyFlow, dailyCost, netProfit, refundRate, growthRate, turnoverDays, debtRatio, employeeCount, operatingYears };
+
+  // 附件数据：传文件名+类型+文本内容（二进制仅传元信息，内容在 LLM 可用时通过 dataUrl 传递）
+  var attachments = valuationState.attachments.map(function(a) {
+    return {
+      name: a.name,
+      size: a.size,
+      type: a.type,
+      textContent: a.textContent || null,
+      // 图片类文件传 base64 以便 LLM 识别
+      dataUrl: /^image\//.test(a.type) ? a.dataUrl : null
+    };
+  });
+  if (attachments.length > 0) {
+    formData.attachments = attachments;
+  }
+
   valuationState.formData = formData;
 
   // 显示加载态
@@ -1898,9 +2104,11 @@ function renderValuationResult(r) {
     }
   }
 
-  // 来源标识
-  var sourceLabel = r._source === 'llm' ? '<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-gradient-finance text-white shadow-sm"><i class="fas fa-brain"></i> AI 分析师</span>' :
-    '<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-gray-600 text-white"><i class="fas fa-microchip"></i> 本地引擎</span>';
+  // 附件标识
+  var attachBadge = '';
+  if (r._attachments && r._attachments.length > 0) {
+    attachBadge = '<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-600 border border-blue-200"><i class="fas fa-paperclip"></i> ' + r._attachments.length + ' 份材料</span>';
+  }
 
   resultEl.innerHTML =
     // 综合评分卡片 — 白色卡片 + 渐变背景
@@ -1913,7 +2121,7 @@ function renderValuationResult(r) {
               '<span class="px-3 py-1 rounded-lg text-xs font-bold text-white shadow-sm" style="background:' + gradeColor + ';">' + escapeHtml(r.archetype || '分析中') + '</span>' +
             '</div>' +
             '<p class="text-gray-600 text-xs mt-2">' + escapeHtml(r.archetypeDesc || '') + '</p>' +
-            '<p class="text-gray-400 text-xs mt-0.5">' + escapeHtml(r.grade || '') + ' 级评定 ' + sourceLabel + '</p>' +
+            '<p class="text-gray-400 text-xs mt-0.5">' + escapeHtml(r.grade || '') + ' 级评定 ' + attachBadge + '</p>' +
           '</div>' +
           '<div class="relative w-16 h-16 flex-shrink-0">' +
             '<svg class="w-16 h-16" style="transform:rotate(-90deg)" viewBox="0 0 36 36">' +
@@ -2037,8 +2245,10 @@ function renderDealParam(label, value) {
 
 function resetValuation() {
   valuationState.result = null;
+  valuationState.attachments = [];
   var resultEl = document.getElementById('val-result');
   if (resultEl) { resultEl.classList.add('hidden'); resultEl.innerHTML = ''; }
+  renderFileList();
   var container = document.getElementById('page-valuation').querySelector('.overflow-auto');
   if (container) container.scrollTo({ top: 0, behavior: 'smooth' });
 }
@@ -2055,7 +2265,11 @@ function exportValuationReport() {
   text += '  HSR 六维体检 · 估值评估报告\n';
   text += '═══════════════════════════════════\n\n';
   text += '项目：' + (fd.name || '未命名') + ' | 赛道：' + (fd.industry || '未指定') + '\n';
-  text += '评估时间：' + new Date().toLocaleDateString('zh-CN') + '\n\n';
+  text += '评估时间：' + new Date().toLocaleDateString('zh-CN') + '\n';
+  if (r._attachments && r._attachments.length > 0) {
+    text += '辅助材料：' + r._attachments.map(function(a) { return a.name; }).join('、') + '\n';
+  }
+  text += '\n';
 
   // 老板视角
   if (r.ownerView && r.ownerView.lines && r.ownerView.lines.length) {
